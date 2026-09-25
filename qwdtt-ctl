@@ -1,0 +1,782 @@
+#!/bin/sh
+# qwdtt-ctl — управление клиентом qwdtt
+CONF="${QWDTT_CONF:-/opt/etc/qwdtt/qwdtt.conf}"
+# ЭТАЛОН СУММЫ ДВИЖКА — ОДИН ПУТЬ НА ВСЕХ, и он там, где эталон ЧИТАЮТ.
+#
+# Разбор 25.08.2026: здесь и в install.sh эталон писался рядом с бинарём
+# ("$(dirname "$DST")/.meridian-route.sha" = /opt/bin/), а init читает его из
+# /opt/etc/qwdtt/. Ни один пишущий не писал туда, откуда читает единственный
+# читающий. Следствие было бы хуже, чем «не работает»: repair печатал бы
+# «ЭТАЛОН РАЗОШЁЛСЯ — переписал из манифеста», переписывая НЕ ТОТ файл, а init
+# продолжал бы ругаться. Два зелёных отчёта и одна красная строка без связи.
+#
+# Строка ниже обязана СОВПАДАТЬ со строкой в qwdtt-init-entware.sh и install.sh —
+# это проверяет сканер (test-scripts.sh), а не поведенческий тест: стенд задаёт
+# оба пути одной переменной и разойтись им в песочнице не даёт.
+ROUTE_SHA="${QWDTT_ROUTE_SHA:-${QWDTT_CONF_DIR:-/opt/etc/qwdtt}/.meridian-route.sha}"
+# Прежнее место. Оставлять его нельзя: файл, который никто не читает, переживёт
+# нас и станет началом следующего разбора.
+ROUTE_SHA_OLD="${QWDTT_ROUTE_SHA_OLD:-/opt/bin/.meridian-route.sha}"
+LOG="${QWDTT_LOG:-/opt/var/log/qwdtt.log}"
+WG="${QWDTT_WG:-/opt/etc/qwdtt/wg.conf}"
+INITD="${QWDTT_INITD:-/opt/etc/init.d/S99qwdtt}"
+[ -x "$INITD" ] || INITD="/etc/init.d/qwdtt"
+# Конфиг подключается ТОЛЬКО если он есть и читается. Без проверки `.` на
+# отсутствующем файле завершает весь скрипт (точка — специальная встроенная
+# команда, и её неудача в POSIX-оболочке фатальна), причём МОЛЧА: `qwdtt-ctl
+# status` на роутере без конфига не печатал ничего и возвращал 0. Найдено
+# 17.08.2026 при первом же прогоне уборки на поддельном дереве.
+[ -r "$CONF" ] && . "$CONF" 2>/dev/null
+
+# ---------- размещение файлов (см. /root/РАЗМЕЩЕНИЕ-НА-РОУТЕРЕ.md) ----------
+#
+# Пути переопределяются переменными — ТОЛЬКО чтобы уборку можно было проверить на
+# поддельном дереве. Уборка удаляет файлы, и непроверяемой она быть не имеет права.
+BINDIR="${QWDTT_BINDIR:-/opt/bin}"
+BAKDIR="${QWDTT_BAKDIR:-/opt/var/backup/qwdtt}"
+LOGDIR="${QWDTT_LOGDIR:-/opt/var/log}"
+RUNTMP="${QWDTT_RUNTMP:-/tmp/qwdtt-run}"
+OPTROOT="${QWDTT_OPTROOT:-/opt}"
+# Каталог, где живут ЧУЖИЕ временные файлы (opkg). Уборка его только осматривает.
+OPTTMP="${QWDTT_OPTTMP:-/opt/tmp}"
+# Потолок лога, до которого обрезаем: столько же, сколько держит сам клиент.
+LOGMAX="${QWDTT_LOGMAX:-2097152}"
+
+usage() {
+cat <<EOF
+qwdtt-ctl — управление туннелем
+
+qwdtt-ctl status статус, воркеры, трафик
+qwdtt-ctl wg показать WireGuard-конфиг для панели
+qwdtt-ctl log последние строки лога
+qwdtt-ctl hashes A,B,C задать хэши VK-звонков (через запятую)
+qwdtt-ctl n 48 число потоков (кратно 12)
+qwdtt-ctl server IP:PORT адрес сервера
+qwdtt-ctl mode wg|raw режим подключения (RAW — экспериментальный, без WireGuard)
+qwdtt-ctl deviceid показать ID устройства
+qwdtt-ctl route-purge      снять правила маршрутизации (перед удалением движка)
+qwdtt-ctl route-purge --with-list  то же и очистить список адресов
+qwdtt-ctl cleanup убрать наш мусор (бэкапы, обрывки, прогоны), обрезать логи
+qwdtt-ctl cleanup --list только показать, что будет снято и сколько освободится
+qwdtt-ctl cleanup --runs   снять и свежие файлы прогонов (по умолчанию моложе 1 мин не трогаю)
+qwdtt-ctl repair           доустановить: сверить с раздачей, докачать недостающее, поднять службы
+qwdtt-ctl repair --list    только показать, чего не хватает и что не сходится
+qwdtt-ctl start|stop|restart
+EOF
+}
+
+set_conf() { # ключ значение
+# Без `sed -i`: ключ есть не в каждой сборке BusyBox, а неудача правки конфига
+# выглядит как «команда прошла» — значение просто не меняется. Через временный
+# файл рядом и mv: заодно замена становится атомарной.
+# ПРАВА. В конфиге лежит PASSWORD туннеля, значит 0600 и только 0600.
+#
+# 05.09.2026: у владельца конфиг оказался 0644. Установщик ставит 0600 —
+# сбивала его ЭТА функция: `mv` временного файла заменяет не содержимое, а сам
+# файл, и права конфига становятся правами временного, то есть по umask (0644).
+# Замена атомарна, и это правильно, — но атомарная замена меняет и режим.
+#
+# Ставим 0600 СРАЗУ на временный файл (до того, как в него попадёт пароль) и
+# ещё раз на конфиг после подмены: первое закрывает окно, второе чинит уже
+# испорченные права на старых роутерах.
+if grep -q "^$1=" "$CONF" 2>/dev/null; then
+	tmp="$CONF.tmp.$$"
+	: > "$tmp" 2>/dev/null
+	chmod 600 "$tmp" 2>/dev/null
+	if sed "s|^$1=.*|$1=\"$2\"|" "$CONF" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+		mv -f "$tmp" "$CONF"
+		chmod 600 "$CONF" 2>/dev/null
+	else
+		rm -f "$tmp"
+		echo "НЕ УДАЛОСЬ изменить $1 в $CONF" >&2
+		return 1
+	fi
+else
+	echo "$1=\"$2\"" >> "$CONF"
+	chmod 600 "$CONF" 2>/dev/null
+fi
+}
+
+apply() { # рестарт и подождать
+echo "Применяю..."
+"$INITD" restart >/dev/null 2>&1
+sleep 8
+status
+}
+
+status() {
+if "$INITD" status 2>/dev/null | grep -qi 'работ\|running'; then
+	echo "Состояние: РАБОТАЕТ"
+else
+	echo "Состояние: ОСТАНОВЛЕН"
+fi
+LAST=$(grep 'СТАТИСТИКА\|Активных' "$LOG" 2>/dev/null | tail -1)
+[ -n "$LAST" ] && echo "$LAST" | sed 's/.*\[/[/'
+if [ "${MODE:-wg}" = "raw" ]; then
+	echo "Режим: RAW (без WireGuard, порт 9000 не используется)"
+else
+	if netstat -ln 2>/dev/null | grep -q '127.0.0.1:9000'; then
+		echo "Порт 9000: слушает ✓"
+	else
+		echo "Порт 9000: НЕ слушает ✗"
+	fi
+fi
+}
+
+# extract_wg_from_log — та же логика, что уже стоит в веб-панели
+# (extractWGFromLog в main.go): достаёт свежий WG-конфиг прямо из лога
+# клиента, а не полагается на разово созданный при установке файл wg.conf.
+extract_wg_from_log() {
+[ -f "$LOG" ] || return 1
+PRIV=$(sed -n 's/.*[[:space:]]PrivateKey[[:space:]]*=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$LOG" | tail -1)
+ADDR=$(sed -n 's/.*[[:space:]]Address[[:space:]]*=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$LOG" | tail -1)
+PUB=$(sed -n 's/.*[[:space:]]PublicKey[[:space:]]*=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$LOG" | tail -1)
+ALLOWED=$(sed -n 's/.*[[:space:]]AllowedIPs[[:space:]]*=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$LOG" | tail -1)
+ENDPOINT=$(sed -n 's/.*[[:space:]]Endpoint[[:space:]]*=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$LOG" | tail -1)
+if [ -z "$PRIV" ] || [ -z "$ADDR" ] || [ -z "$PUB" ] || [ -z "$ENDPOINT" ]; then
+	return 1
+fi
+[ -z "$ALLOWED" ] && ALLOWED="0.0.0.0/0"
+printf '[Interface]\nPrivateKey = %s\nAddress = %s\nDNS = 1.1.1.1\nMTU = 1280\n\n[Peer]\nPublicKey = %s\nAllowedIPs = %s\nEndpoint = %s\nPersistentKeepalive = 25\n' \
+	"$PRIV" "$ADDR" "$PUB" "$ALLOWED" "$ENDPOINT"
+return 0
+}
+
+show_wg() {
+if [ -f "$WG" ]; then
+	echo "=== WireGuard-конфиг (вставь в панель роутера) ==="
+	cat "$WG"
+	return 0
+fi
+# файл ещё не появился (например, только что стартовали) — пробуем live-парсинг
+# из лога как запасной путь, пока фоновый ловец в init-скрипте не успел сработать
+CFG=$(extract_wg_from_log)
+if [ -n "$CFG" ]; then
+	echo "=== WireGuard-конфиг (вставь в панель роутера) ==="
+	echo "$CFG"
+	echo "$CFG" > "$WG" 2>/dev/null
+else
+	echo "Конфиг ещё не сгенерирован. Запусти туннель и подожди ~30 сек."
+fi
+}
+
+# ---------- уборка ----------
+#
+# Зачем. 17.08.2026 на роутере владельца из 46 МБ флеша свободно осталось 9,6 МБ,
+# и около 8 МБ занимал НАШ мусор: два бэкапа панели по 2,4 МБ и бэкап клиента 3,6 МБ
+# прямо в /opt/bin, выводы прогонов в /opt, лог апдейтера. У обычного клиента это
+# накопится само: каждое обновление панели и ядра оставляет копию.
+#
+# Устройство, и оно важнее краткости:
+#
+#  1. УДАЛЯЕТ ТОЛЬКО drop(). Больше ни одна строка в этом файле не зовёт rm. Значит
+#     проверка «не наш путь / боевой файл» стоит в одном месте и её нельзя обойти
+#     случайно.
+#  2. ПУТИ — СПИСКОМ, а не поиском. Никаких `find /opt -name '*.bak'`: чужое на
+#     роутере рядом (lighttpd, php8, nfqws2, /opt/tmp принадлежит opkg), и уборка,
+#     которая ходит по всему флешу, однажды снесёт чужое.
+#  3. ЧУЖОЕ ТОЛЬКО НАЗЫВАЕТСЯ. Найденное не наше печатается с размером и остаётся
+#     на месте — решение за владельцем.
+#  4. Логи не удаляются, а ОБРЕЗАЮТСЯ до потолка: лог — улика, и терять его целиком
+#     нельзя (авария 17.08: рестарт затёр дамп горутин раньше, чем его прочитали).
+# OURBINS — имена НАШИХ файлов. Список решает три вещи сразу: что защищено от
+# снятия под боевым именем, у чего бэкапы считаются нашими, и что уборка вправе
+# трогать.
+#
+# ДОПОЛНЕН 30.08.2026. Прежде сюда попадали только боевые компоненты, а наши
+# СОБСТВЕННЫЕ диагностические артефакты и копии init-скриптов были для уборки
+# «не наше имя» — она их называла и не трогала НИКОГДА. Следствие измерено на
+# роутере владельца: 3.9 МБ занимал `meridian-dns-observe.prev` от эксперимента
+# 24.08, плюс копии init-скриптов версии 4.9 при работающей 5.1. При 46 МБ флеша
+# это ровно тот способ, которым однажды уже накопилось 8 МБ нашего мусора
+# (правило 23) — только теперь мусор наш и невидимый для собственной уборки.
+#
+# Добавление имени НЕ означает «удалить»: файл с точным именем компонента
+# защищён (is_production_name) и в бэкапах остаётся как единственный. Снимаются
+# только ЛИШНИЕ копии вида «имя.что-то» — та же политика, что для qwdtt.prev.
+OURBINS="qwdtt qwdtt-web qwdtt-ctl qwdtt-probe.sh qwdtt-web-updater.sh meridian-route meridian-dns-observe S99qwdtt S98qwdtt-web"
+CLEAN_DRY=0
+CLEAN_RUNS=0
+CLEAN_FREED=0
+CLEAN_GONE=0
+CLEAN_TRIM=0
+# Файлы моложе этого возраста в каталоге прогонов не трогаем: человек может быть
+# в СЕРЕДИНЕ прогона. 18.08.2026 уборка сняла у владельца `before.txt` — снимок
+# дерева, положенный туда пять минут назад для сравнения «до и после», — и он
+# узнал об этом по сломанной проверке, а не по предупреждению.
+FRESH_MIN="${QWDTT_FRESH_MIN:-1}"
+
+mb() { awk -v b="$1" 'BEGIN{printf "%.1f", b/1048576}'; }
+sizeof() { wc -c < "$1" 2>/dev/null | tr -d ' '; }
+dirsize() { du -sk "$1" 2>/dev/null | awk '{print $1*1024}'; }
+
+# direct_child — файл лежит НЕПОСРЕДСТВЕННО в каталоге, а не в подкаталоге.
+direct_child() { # путь каталог
+	case "${1#"$2"/}" in
+		*/*) return 1 ;;
+		"$1") return 1 ;;
+	esac
+	return 0
+}
+
+is_production_name() {
+	base="${1##*/}"
+	for c in $OURBINS; do [ "$base" = "$c" ] && return 0; done
+	return 1
+}
+
+# allowed_to_drop — единственное место, где решается «можно ли трогать этот путь».
+allowed_to_drop() {
+	f="$1"
+	case "$f" in
+		*..*|'') return 1 ;;
+	esac
+	# 1. Тестовые артефакты в tmpfs — наш каталог целиком, на любой глубине.
+	# Даже файл с боевым именем: из tmpfs ничего не запускается, это склад прогонов.
+	case "$f" in "$RUNTMP"/*) return 0 ;; esac
+	# 2. Файл с БОЕВЫМ ИМЕНЕМ на флеше не снимается нигде и никогда — ни в /opt/bin,
+	# ни в корне /opt. Под таким именем может запускаться живая программа, и ошибка
+	# здесь стоит роутера. Такие файлы уборка НАЗЫВАЕТ и оставляет.
+	is_production_name "$f" && return 1
+	# 3. Обрывки обновлений в каталоге боевых бинарей.
+	direct_child "$f" "$BINDIR" && return 0
+	# 4. Каталог бэкапов — наш целиком.
+	direct_child "$f" "$BAKDIR" && return 0
+	# 5. Наши файлы, оказавшиеся в корне /opt (там их быть не должно вовсе).
+	if direct_child "$f" "$OPTROOT"; then
+		case "${f##*/}" in qwdtt*) [ -f "$f" ] && return 0 ;; esac
+		return 1
+	fi
+	# 6. Лишние прошлые логи (.2 и дальше); .log и .log.1 остаются.
+	direct_child "$f" "$LOGDIR" && case "${f##*/}" in
+		qwdtt*.log.[2-9]|qwdtt*.log.[1-9][0-9]) return 0 ;;
+		# meridian-* добавлены 30.08.2026 (пункт 1 очереди, замечен КОТОМ 1
+		# 19.08). Маска НЕ расширяется до `*.log.*`: уборка ходит по /opt/var/log,
+		# где лежат и чужие логи, а чужое мы называем и не трогаем.
+		meridian*.log.[2-9]|meridian*.log.[1-9][0-9]) return 0 ;;
+	esac
+	return 1
+}
+
+drop() { # путь причина
+	f="$1"; why="$2"
+	[ -e "$f" ] || return 0
+	if ! allowed_to_drop "$f"; then
+		echo "  ПРОПУСК (не наше или боевое): $f"
+		return 0
+	fi
+	if [ -d "$f" ]; then sz=$(dirsize "$f"); else sz=$(sizeof "$f"); fi
+	[ -n "$sz" ] || sz=0
+	if [ "$CLEAN_DRY" = 1 ]; then
+		echo "  снял бы: $f ($(mb "$sz") МБ) — $why"
+	else
+		rm -rf "$f" 2>/dev/null
+		if [ -e "$f" ]; then
+			echo "  НЕ УДАЛОСЬ СНЯТЬ: $f"
+			return 0
+		fi
+		echo "  снято: $f ($(mb "$sz") МБ) — $why"
+	fi
+	CLEAN_FREED=$((CLEAN_FREED + sz))
+	CLEAN_GONE=$((CLEAN_GONE + 1))
+}
+
+# have_mmin — умеет ли ЗДЕШНИЙ find отбирать файлы по возрасту (`-mmin`).
+#
+# Проверяется ПОВЕДЕНИЕМ, а не наличием ключа в справке: BusyBox собирается по
+# частям, и `--help` печатает не то, что собрано. Ровно на этом 18.08.2026
+# сгорел апдейтер: `od -A` есть в BusyBox на этой машине и нет на Кинетике.
+# Кладём заведомо свежий файл и смотрим, вернёт ли его find.
+have_mmin() {
+	[ -n "${MMIN_OK:-}" ] && return "$MMIN_OK"
+	MMIN_OK=1
+	probe="$RUNTMP/.qwdtt-mmin-probe.$$"
+	if mkdir -p "$RUNTMP" 2>/dev/null && : > "$probe" 2>/dev/null; then
+		[ "$(find "$probe" -mmin -"$FRESH_MIN" 2>/dev/null)" = "$probe" ] && MMIN_OK=0   # bb-ok: это и есть проверка возможности
+		rm -f "$probe" 2>/dev/null
+	fi
+	return "$MMIN_OK"
+}
+
+# is_fresh — файл моложе FRESH_MIN минут. Если возраст узнать НЕЧЕМ, отвечаем
+# «свежий»: не удалить лишнее дешевле, чем стереть чужую работу. Каталог считается
+# свежим, если внутри есть хоть один свежий файл, — значит прогон идёт прямо сейчас.
+is_fresh() {
+	have_mmin || return 0
+	[ -n "$(find "$1" -mmin -"$FRESH_MIN" 2>/dev/null)" ]   # bb-ok: зовётся только после have_mmin
+}
+
+# trim_log — обрезать лог до потолка, оставив ХВОСТ (свежие строки важнее старых).
+trim_log() {
+	f="$1"
+	[ -f "$f" ] || return 0
+	sz=$(sizeof "$f"); [ -n "$sz" ] || return 0
+	[ "$sz" -le "$LOGMAX" ] && return 0
+	if [ "$CLEAN_DRY" = 1 ]; then
+		echo "  обрезал бы: $f — $(mb "$sz") МБ → $(mb "$LOGMAX") МБ"
+		CLEAN_FREED=$((CLEAN_FREED + sz - LOGMAX))
+		CLEAN_TRIM=$((CLEAN_TRIM + 1))
+		return 0
+	fi
+	# Через файл рядом (тот же раздел) и mv: обрезать «на месте» нельзя, пока в него
+	# пишет живой процесс.
+	if tail -c "$LOGMAX" "$f" > "$f.trim" 2>/dev/null && [ -s "$f.trim" ]; then
+		mv -f "$f.trim" "$f" 2>/dev/null
+		new=$(sizeof "$f"); [ -n "$new" ] || new="$LOGMAX"
+		echo "  обрезано: $f — $(mb "$sz") МБ → $(mb "$new") МБ"
+		CLEAN_FREED=$((CLEAN_FREED + sz - new))
+		CLEAN_TRIM=$((CLEAN_TRIM + 1))
+	else
+		rm -f "$f.trim" 2>/dev/null
+		echo "  не удалось обрезать (нет места?): $f"
+	fi
+}
+
+# route_purge — снять правила маршрутизации ДО удаления движка.
+#
+# Зовётся ПЕРЕД удалением /opt/bin/meridian-route: снимает правила сам движок, и
+# после его удаления снимать их некому — они останутся в межсетевом экране
+# навсегда, а виновника уже не будет. Тот же порядок, что и с вызовами,
+# уехавшими раньше вызываемого: сначала команда, потом её вызов.
+#
+# Договор движка 1.10: `meridian-route purge [--with-list]`.
+#   код 0 — снимать было что ИЛИ снимать было нечего (оба случая нормальны);
+#   код 1 — после снятия что-то осталось, и это повод не продолжать.
+# Список адресов без --with-list не трогается.
+#
+# На СТАРОМ движке команды нет. Тогда удаление не должно падать — оно должно
+# внятно сказать, что правила снять нечем: молчаливое продолжение оставило бы
+# правила в экране, и человек узнал бы об этом по сломанной сети, а не от нас.
+route_purge() {
+	_pargs=""
+	[ "${1:-}" = "--with-list" ] && _pargs="--with-list"
+	if [ ! -x "$BINDIR/meridian-route" ]; then
+		echo "движка нет ($BINDIR/meridian-route) — правила снимать нечем"
+		return 0
+	fi
+	# Есть ли у этого движка команда снятия. Старый ответит ненулевым кодом или
+	# напечатает подсказку по использованию — и то и другое считаем «не умеет».
+	if ! "$BINDIR/meridian-route" purge --help >/dev/null 2>&1; then
+		echo "ВНИМАНИЕ: этот движок не умеет purge — правила маршрутизации снять НЕЧЕМ."
+		echo "  обнови движок до 1.10 и повтори, иначе правила останутся в межсетевом экране"
+		return 2
+	fi
+	_pout=$("$BINDIR/meridian-route" purge $_pargs 2>&1)
+	_prc=$?
+	echo "$_pout"
+	if [ "$_prc" -ne 0 ]; then
+		echo "ОТКАЗ: снятие правил вернуло код $_prc — что-то осталось в экране."
+		echo "  движок НЕ удаляем: без него снять остаток будет нечем"
+		return 1
+	fi
+	echo "правила маршрутизации сняты (код 0)"
+	return 0
+}
+
+cleanup() {
+	for a in "$@"; do
+		case "$a" in
+			--list|-n|list) CLEAN_DRY=1 ;;
+			--runs)         CLEAN_RUNS=1 ;;
+		esac
+	done
+	[ "$CLEAN_DRY" = 1 ] && echo "=== уборка: ТОЛЬКО ПОКАЗАТЬ, ничего не трогаю ===" \
+	                     || echo "=== уборка ==="
+	echo "боевые: $BINDIR   бэкапы: $BAKDIR   логи: $LOGDIR   прогоны: $RUNTMP"
+
+	echo "-- обрывки обновлений рядом с боевыми бинарями --"
+	# Маска раскрывается по ПОЛНОМУ пути, а не по имени: `[ -e "$BINDIR/$c.prev.*" ]`
+	# ничего не находит — внутри кавычек звёздочка остаётся звёздочкой. На этом
+	# первый прогон и поймал уборку: `.bak` снимался, а `.prev.<время>` — те самые
+	# 4,8 МБ у владельца — оставался лежать.
+	for c in $OURBINS; do
+		for f in "$BINDIR/$c".bak "$BINDIR/$c".bak.* "$BINDIR/$c".prev.* \
+		         "$BINDIR/$c".prevprod "$BINDIR/$c".old "$BINDIR/$c".new \
+		         "$BINDIR/$c".incoming "$BINDIR/$c".tmp "$BINDIR/$c".dl.* \
+		         "$BINDIR/.$c".incoming "$BINDIR/$c".trim "$BINDIR/$c".failed; do
+			[ -e "$f" ] || continue
+			drop "$f" "бэкапы и обрывки живут в $BAKDIR, а не рядом с боевым"
+		done
+	done
+
+	echo "-- лишние бэкапы (оставляю по одному на компонент) --"
+	if [ -d "$BAKDIR" ]; then
+		for f in "$BAKDIR"/*; do
+			[ -e "$f" ] || continue
+			base="${f##*/}"
+			# КАНОНИЧЕСКОЕ имя копии — «<компонент>.prev» (05.09.2026), но голое
+			# имя тоже законная копия, пока рядом нет «.prev».
+			#
+			# ПЕРЕИМЕНОВЫВАТЬ ЗДЕСЬ НЕЛЬЗЯ, и это я понял не сразу. Первая
+			# редакция переезжала со старой схемы прямо в уборке — и `--list`
+			# начал ИЗМЕНЯТЬ ДЕРЕВО. Режим «только показать» обязан не трогать
+			# ничего; прогон это и поймал первой же строкой. Переезд схемы —
+			# дело панели (backupPathFor) и апдейтера, у уборки другая работа:
+			# снимать ЛИШНЕЕ.
+			#
+			# Что здесь лишнее: голая копия, РЯДОМ С КОТОРОЙ уже лежит «.prev».
+			# Это и есть та самая пара, из-за которой у владельца в каталоге
+			# лежало по две копии одного файла и 13 МБ из 16.
+			keep=0
+			dubl=0
+			for c in $OURBINS; do
+				[ "$base" = "$c.prev" ] && keep=1
+				if [ "$base" = "$c" ]; then
+					if [ -e "$BAKDIR/$c.prev" ]; then dubl=1; else keep=1; fi
+				fi
+			done
+			if [ "$dubl" = 1 ]; then
+				drop "$f" "дубль: актуальная копия уже лежит в ${base}.prev"
+				continue
+			fi
+			if [ "$keep" = 1 ]; then
+				echo "  оставляю: $f ($(mb "$(sizeof "$f")") МБ) — это и есть тот один бэкап"
+				continue
+			fi
+			known=0
+			for c in $OURBINS; do case "$base" in "$c".*) known=1 ;; esac; done
+			if [ "$known" = 1 ]; then
+				drop "$f" "лишний бэкап компонента"
+			else
+				echo "  не наше имя, не трогаю: $f"
+			fi
+		done
+	else
+		echo "  каталога бэкапов ещё нет — нечего снимать"
+	fi
+
+	echo "-- тестовые артефакты и выводы прогонов --"
+	if [ -d "$RUNTMP" ]; then
+		for f in "$RUNTMP"/* "$RUNTMP"/.[!.]*; do
+			[ -e "$f" ] || continue
+			if [ "$CLEAN_RUNS" = 0 ] && is_fresh "$f"; then
+				echo "  свежее $FRESH_MIN мин, не трогаю: $f (идёт прогон? снять принудительно: qwdtt-ctl cleanup --runs)"
+				continue
+			fi
+			drop "$f" "прогоны живут в tmpfs и не обязаны переживать перезагрузку"
+		done
+	else
+		echo "  $RUNTMP пуст или отсутствует"
+	fi
+	for f in "$OPTROOT"/qwdtt*; do
+		[ -f "$f" ] || continue
+		drop "$f" "в корне $OPTROOT наших файлов быть не должно"
+	done
+
+	echo "-- логи: обрезаю до потолка $(mb "$LOGMAX") МБ, оставляю один прошлый --"
+	for f in "$LOGDIR"/qwdtt.log "$LOGDIR"/qwdtt-web.log "$LOGDIR"/qwdtt-probe.log \
+	         "$LOGDIR"/qwdtt.log.updater "$LOGDIR"/qwdtt-web.log.updater; do
+		trim_log "$f"
+	done
+	for f in "$LOGDIR"/qwdtt*.log.[2-9] "$LOGDIR"/qwdtt*.log.[1-9][0-9] \
+	         "$LOGDIR"/meridian*.log.[2-9] "$LOGDIR"/meridian*.log.[1-9][0-9]; do
+		[ -e "$f" ] || continue
+		drop "$f" "прошлых логов держим ровно один"
+	done
+
+	echo "-- чужое: называю и НЕ трогаю --"
+	found_foreign=0
+	for f in "$OPTTMP"/opkg-* "$OPTTMP"/opkg_*; do
+		[ -e "$f" ] || continue
+		echo "  чужое (opkg): $f ($(mb "$(dirsize "$f")") МБ) — решай сам, уборка его не касается"
+		found_foreign=1
+	done
+	[ "$found_foreign" = 0 ] && echo "  чужих остатков не нашла"
+
+	echo "=== итог ==="
+	if [ "$CLEAN_DRY" = 1 ]; then
+		echo "освободилось бы: $(mb "$CLEAN_FREED") МБ (файлов к снятию $CLEAN_GONE, логов к обрезке $CLEAN_TRIM)"
+		echo "запусти без --list, чтобы снять"
+	else
+		echo "освобождено: $(mb "$CLEAN_FREED") МБ (снято файлов $CLEAN_GONE, обрезано логов $CLEAN_TRIM)"
+	fi
+	# Ключ -P есть не в каждой сборке BusyBox, и без него df не печатает иначе, а
+	# не выполняется вовсе. Поэтому возможность проверяется, а не предполагается.
+	DF_OPT="-Pk"; df $DF_OPT / >/dev/null 2>&1 || DF_OPT="-k"
+	SPACE=$(df $DF_OPT "$BINDIR" 2>/dev/null | awk 'NR==2{printf "%.1f", $4/1024}')
+	[ -n "$SPACE" ] && echo "свободно на разделе $BINDIR: $SPACE МБ"
+}
+
+show_deviceid() {
+VAL=$(grep '^DEVICE_ID=' "$CONF" 2>/dev/null)
+if [ -n "$VAL" ]; then
+	echo "$VAL"
+else
+	echo "ещё не сгенерирован (появится при следующем запуске)"
+fi
+}
+
+# ---------- repair: доустановить то, чего не хватает ----------
+#
+# Заведено 18.08.2026 после аварии установки у нового клиента: она сорвалась
+# посередине и оставила роутер с конфигом, но без программ. Руками это чинилось
+# шестью командами — клиенту такого не предложишь, а случай повторится при любом
+# обрыве посреди установки.
+#
+# Своей копии «как определить архитектуру», «чем качать» и «как безопасно
+# положить файл» здесь НЕТ намеренно. Всё это живёт в установщике, и repair его
+# ПОДКЛЮЧАЕТ: две копии одной логики разойдутся, и разойдутся молча.
+REPAIR_BASE="${QWDTT_REPAIR_BASE:-http://138.124.78.252:8080/bin}"
+
+# bootstrap_get — принести один файл ДО того, как у нас есть выбранный загрузчик.
+# Формы перебираются, потому что `wget -T` на части прошивок не ругается, а
+# падает по сигналу (та самая авария).
+bootstrap_get() { # bootstrap_get КУДА АДРЕС
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --connect-timeout 5 -o "$1" "$2" 2>/dev/null && [ -s "$1" ] && return 0
+	fi
+	if command -v wget >/dev/null 2>&1; then
+		wget -q -O "$1" "$2" 2>/dev/null && [ -s "$1" ] && return 0
+	fi
+	return 1
+}
+
+repair() {
+	LIST_ONLY=0
+	[ "${1:-}" = "--list" ] && LIST_ONLY=1
+	mkdir -p "$RUNTMP" 2>/dev/null || true
+	INS="$RUNTMP/install.sh"
+	# QWDTT_REPAIR_INSTALLER — полный адрес установщика. Нужен, пока новая версия
+	# ещё не опубликована: доустановка обязана уметь работать с кандидатом, иначе
+	# проверить её на живом роутере до публикации невозможно.
+	INS_URL="${QWDTT_REPAIR_INSTALLER:-$REPAIR_BASE/install.sh}"
+	echo "Беру установщик (в нём определение архитектуры и безопасное скачивание): $INS_URL"
+	if ! bootstrap_get "$INS" "$INS_URL"; then
+		echo "Не скачать установщик с $INS_URL — проверь связь:" >&2
+		echo "  wget -q -O /tmp/проба $REPAIR_BASE/VERSION_CLIENT; echo код=\$?" >&2
+		return 1
+	fi
+	head -1 "$INS" | grep -q '^#!' || { echo "install.sh пришёл не тот (нет шебанга)" >&2; return 1; }
+
+	# Подключаем и СРАЗУ снимаем set -e: установщик включает его для себя, а нам
+	# он оборвал бы обход списка на первом же «файла нет».
+	QWDTT_INSTALL_SOURCE_ONLY=1 . "$INS"
+	set +e
+	# detect_arch при неудаче зовёт die (то есть exit). В доустановке это
+	# оборвало бы команду без внятного объяснения, поэтому зовём его в
+	# подоболочке и разбираемся сами.
+	ARCH=$( detect_arch >/dev/null 2>&1; echo "$ARCH" )
+	if [ -z "$ARCH" ]; then
+		echo "Не определить архитектуру роутера. Запусти с явным указанием:" >&2
+		echo "  ARCH_OVERRIDE=mipsle qwdtt-ctl repair" >&2
+		return 1
+	fi
+	echo "Архитектура: $ARCH"
+	# Старый установщик (до 4.7) не умеет выбирать загрузчик пробой. Тогда
+	# доустановка не отказывает, а честно говорит об этом и берёт заведомо
+	# безопасную форму: без -T, потому что именно он и падает на части прошивок.
+	if command -v pick_downloader >/dev/null 2>&1 || type pick_downloader >/dev/null 2>&1; then
+		pick_downloader || return 1
+	else
+		echo "ВНИМАНИЕ: в раздаче установщик старой версии — выбираю загрузчик без пробы"
+		if command -v curl >/dev/null 2>&1; then DL="curl -fsSL --connect-timeout 5 -o"
+		else DL="wget -q -O"; fi
+		echo "Загрузчик: $DL"
+	fi
+
+	SUMS="$RUNTMP/SHA256SUMS"
+	rm -f "$SUMS"
+	if ! bootstrap_get "$SUMS" "$REPAIR_BASE/SHA256SUMS"; then
+		echo "Не скачать SHA256SUMS — сверять не с чем, доустановка отменена" >&2
+		return 1
+	fi
+
+	# Состав: «имя в раздаче | куда ставить | минимальный размер | вид».
+	# Init-скрипты выбираются по тому, какой менеджер служб на роутере.
+	# Каталоги служб берём из ТЕХ ЖЕ переменных, что и установщик (он подключён
+	# выше и уже их определил) — чтобы прогон мог увести их в песочницу.
+	ENT_DIR="${INITD_ENTWARE_DIR:-/opt/etc/init.d}"
+	PROCD_DIR="${QWDTT_INITD_PROCD_DIR:-/etc/init.d}"
+	if [ -d "$ENT_DIR" ]; then
+		INIT_ITEM="qwdtt-init-entware.sh $ENT_DIR/S99qwdtt 500 script"
+		WEBINIT_ITEM="qwdtt-web-init-entware.sh $ENT_DIR/S98qwdtt-web 300 script"
+	elif [ -d "$PROCD_DIR" ]; then
+		INIT_ITEM="qwdtt-init-openwrt.sh $PROCD_DIR/qwdtt 500 script"
+		WEBINIT_ITEM="qwdtt-web-init-openwrt.sh $PROCD_DIR/qwdtt-web 300 script"
+	else
+		INIT_ITEM=""
+		WEBINIT_ITEM=""
+	fi
+	# Порог у движка — 20000 Б. Это ПОЛ, ловящий грубый обрыв, и только его:
+	# сегодняшний движок 1.7 весит 66 448 Б, самая маленькая выложенная версия
+	# (v1test) — 36 324 Б. Приговор УЖЕ установленному файлу выносится ниже по
+	# СУММЕ, а не по размеру, поэтому законно похудевший движок битым не назовут.
+	ITEMS="qwdtt-$ARCH $BINDIR/qwdtt 1000000 elf
+qwdtt-web-$ARCH $BINDIR/qwdtt-web 1000000 elf
+qwdtt-ctl $BINDIR/qwdtt-ctl 500 script
+qwdtt-probe.sh $BINDIR/qwdtt-probe.sh 500 script
+meridian-route $BINDIR/meridian-route 20000 script"
+	[ -n "$INIT_ITEM" ] && ITEMS="$ITEMS
+$INIT_ITEM
+$WEBINIT_ITEM"
+
+	BAD=""
+	UNCHECKED=""
+	echo ""
+	echo "Что должно стоять на роутере:"
+	# Обход через here-doc, а не через пайп: `while read` за пайпом крутится в
+	# ПОДОБОЛОЧКЕ, и список недостающего пропал бы вместе с ней.
+	while read -r SRC DST MIN KIND; do
+		[ -n "$SRC" ] || continue
+		WANT=$(awk -v n="$SRC" '$2 == n {print $1}' "$SUMS" 2>/dev/null | head -1)
+		if [ ! -f "$DST" ]; then
+			echo "  НЕТ:        $DST"
+			BAD="$BAD$SRC $DST $MIN $KIND
+"
+			continue
+		fi
+		if [ -z "$WANT" ]; then
+			# ТРЕТИЙ исход, и он обязателен. «Проверить не смогли» — это не
+			# «в порядке»: молчаливое «всё хорошо» при невозможности проверить —
+			# ровно тот дефект, который мы ловим весь месяц. Такой файл НЕ чиним
+			# (чинить не по чему) и НЕ объявляем исправным.
+			echo "  НЕ ПРОВЕРЕН: $DST (суммы для $SRC нет в SHA256SUMS раздачи)"
+			UNCHECKED="$UNCHECKED$SRC "
+			continue
+		fi
+		HAVE=$(sha256sum "$DST" 2>/dev/null | awk '{print $1}')
+		if [ "$WANT" = "$HAVE" ]; then
+			echo "  на месте:   $DST"
+			# У движка рядом лежит эталон .meridian-route.sha, по которому init
+			# сверяет файл БЕЗ СЕТИ. Сеть у нас сейчас есть (без манифеста repair
+			# не начинается вовсе), поэтому сверяем и САМ ЭТАЛОН с манифестом:
+			# без этого подмена ПАРЫ «файл + эталон» не ловится никогда — сверка
+			# вещи с копией самой себя зелена всегда.
+			if [ "$SRC" = "meridian-route" ]; then
+				ESHA="$ROUTE_SHA"
+				CUR=$(cat "$ESHA" 2>/dev/null)
+				if [ "$LIST_ONLY" = 1 ]; then
+					# «ТОЛЬКО ПОКАЗАТЬ» НЕ ПИШЕТ НА ДИСК. Найдено КОТОМ 1
+					# 25.08.2026: режим показа переписывал эталон, то есть менял
+					# то, что пришли посмотреть. Дефект сам по себе, независимо
+					# от того, верное значение он писал или нет.
+					if [ -z "$CUR" ]; then
+						echo "              эталона нет — repair запишет из манифеста"
+					elif [ "$CUR" != "$WANT" ]; then
+						echo "              эталон разошёлся с раздачей — repair перепишет"
+					fi
+					[ -f "$ROUTE_SHA_OLD" ] && echo "              есть эталон в прежнем месте $ROUTE_SHA_OLD — repair его снимет"
+				else
+					if [ -z "$CUR" ]; then
+						printf '%s\n' "$WANT" > "$ESHA" 2>/dev/null &&
+							echo "              эталона не было — записал из манифеста"
+					elif [ "$CUR" != "$WANT" ]; then
+						printf '%s\n' "$WANT" > "$ESHA" 2>/dev/null &&
+							echo "              ЭТАЛОН РАЗОШЁЛСЯ с раздачей — переписал из манифеста"
+					fi
+					# Прежний эталон рядом с бинарём снимаем: его никто не читает.
+					if [ -f "$ROUTE_SHA_OLD" ]; then
+						rm -f "$ROUTE_SHA_OLD" 2>/dev/null &&
+							echo "              снял устаревший эталон $ROUTE_SHA_OLD (его никто не читал)"
+					fi
+				fi
+			fi
+		else
+			echo "  НЕ ТА ВЕРСИЯ: $DST (сумма не совпала с раздачей)"
+			BAD="$BAD$SRC $DST $MIN $KIND
+"
+		fi
+	done <<ITEMS_EOF
+$ITEMS
+ITEMS_EOF
+
+	if [ -z "$BAD" ]; then
+		echo ""
+		if [ -n "$UNCHECKED" ]; then
+			echo "Доустанавливать нечего, но НЕ ВСЁ ПРОВЕРЕНО."
+			echo "  Без сверки остались: $UNCHECKED"
+			echo "  Это не «в порядке»: сумм для них в раздаче нет, и сказать про"
+			echo "  эти файлы нечего. Сообщи нам — похоже, состав раздачи неполон."
+			return 1
+		fi
+		echo "Всё на месте и совпадает с раздачей — доустанавливать нечего."
+		return 0
+	fi
+	if [ "$LIST_ONLY" = 1 ]; then
+		echo ""
+		echo "Это только показ. Доустановить: qwdtt-ctl repair"
+		return 0
+	fi
+
+	echo ""
+	echo "Доустанавливаю недостающее:"
+	FAILED=0
+	while read -r SRC DST MIN KIND; do
+		[ -n "$SRC" ] || continue
+		if fetch_to_target "$SRC" "$DST" "$MIN" "$KIND"; then
+			echo "  поставлено: $DST"
+			# Эталон движка пишем ТОЛЬКО когда сумма подтверждена манифестом.
+			if [ "$SRC" = "meridian-route" ]; then
+				ESHA="$ROUTE_SHA"
+				rm -f "$ROUTE_SHA_OLD" 2>/dev/null || true
+				if [ "$FETCH_VERIFIED" = 1 ] && command -v sha256sum >/dev/null 2>&1; then
+					sha256sum "$DST" | awk '{print $1}' > "$ESHA" 2>/dev/null
+					echo "              эталон суммы записан"
+				else
+					rm -f "$ESHA" 2>/dev/null || true
+					echo "              сумма манифестом НЕ подтверждена — эталон не пишу"
+				fi
+			fi
+		else
+			echo "  НЕ ВЫШЛО:   $DST"
+			FAILED=1
+		fi
+	done <<BAD_EOF
+$BAD
+BAD_EOF
+
+	echo ""
+	if [ -x "$INITD" ]; then
+		echo "Поднимаю клиента: $INITD restart"
+		"$INITD" restart >/dev/null 2>&1 || true
+	fi
+	for W in "$ENT_DIR/S98qwdtt-web" "$PROCD_DIR/qwdtt-web"; do
+		if [ -x "$W" ]; then
+			echo "Поднимаю панель: $W restart"
+			"$W" restart >/dev/null 2>&1 || true
+			break
+		fi
+	done
+	sleep 3
+	echo ""
+	if [ "$FAILED" = 1 ]; then
+		echo "Часть файлов доустановить не удалось — причины напечатаны выше построчно."
+		echo "Повтори команду; если повторяется, пришли нам весь вывод целиком."
+		return 1
+	fi
+	echo "Доустановка завершена. Проверь: qwdtt-ctl status"
+	return 0
+}
+
+case "$1" in
+status) status ;;
+wg) show_wg ;;
+log) tail -20 "$LOG" 2>/dev/null ;;
+deviceid) show_deviceid ;;
+cleanup|уборка) shift; cleanup "$@" ;;
+repair|доустановить) shift; repair "$@" ;;
+hashes)
+	[ -n "$2" ] || { echo "Укажи хэши: qwdtt-ctl hashes A,B,C"; exit 1; }
+	set_conf VK_HASHES "$2"; echo "Хэши обновлены."; apply ;;
+n)
+	[ -n "$2" ] || { echo "Укажи число: qwdtt-ctl n 48"; exit 1; }
+	set_conf N "$2"; echo "Потоков: $2"; apply ;;
+server)
+	[ -n "$2" ] || { echo "Укажи адрес: qwdtt-ctl server IP:PORT"; exit 1; }
+	set_conf PEER "$2"; echo "Сервер: $2"; apply ;;
+delay)
+	[ -n "$2" ] || { echo "Укажи минуты: qwdtt-ctl delay 2"; exit 1; }
+	set_conf DELAY_MIN "$2"; echo "Задержка автозапуска: $2 мин" ;;
+mode)
+	[ -n "$2" ] || { echo "Укажи режим: qwdtt-ctl mode wg|raw"; exit 1; }
+	case "$2" in
+		wg|raw) ;;
+		*) echo "Режим должен быть wg или raw"; exit 1 ;;
+	esac
+	set_conf MODE "$2"; echo "Режим: $2"; apply ;;
+start) "$INITD" start ;;
+stop) "$INITD" stop ;;
+restart) apply ;;
+route-purge) route_purge "${2:-}" ;;
+*) usage ;;
+esac
