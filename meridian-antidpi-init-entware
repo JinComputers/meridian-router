@@ -1,0 +1,69 @@
+#!/bin/sh
+# meridian-antidpi + независимое правило NFQUEUE 500 (28.09.2026, группы — 29.09.2026).
+#
+# СОБСТВЕННОЕ ИМЯ, не слот nfqws2: раньше жил в файле S51nfqws2, и когда
+# владелец удалил nfqws2 через opkg, пакетный менеджер снёс этот файл вместе
+# с собой. Свой файл opkg не тронет.
+#
+# Группы (youtube/discord/cloudflare/other/social) — в $GROUPS, правит
+# /opt/bin/meridian-antidpi-ctl (договор с панелью как на OpenWrt);
+# reload = SIGHUP, движок перечитывает группы без перезапуска очереди.
+#
+# rules — вернуть правила очереди, если движок запущен. Зовёт крючок
+# /opt/etc/ndm/netfilter.d/60-meridian-antidpi.sh: NDM при пересборке
+# netfilter (переподключение WAN/4G и т.п.) стирает правила в mangle FORWARD —
+# 29.09 на HERO так anti-DPI молча отключился на несколько часов.
+BIN=/opt/bin/meridian-antidpi
+GROUPS=/opt/etc/meridian-antidpi/groups
+STRATEGY=/opt/etc/meridian-antidpi/strategy
+LOG=/opt/var/log/meridian-antidpi.log
+NFQ_MARK="0x1c9/0x1ff"
+NFQ_TCP_PORTS="80,443,1984,2053,2083,2087,2096,5222,8443"
+NFQ_UDP_PORTS="443,590:600,1400,3478:3481,5349,19294:19344"
+
+add_rules() {
+	iptables -t mangle -C FORWARD -p tcp -m mark ! --mark "$NFQ_MARK" -m multiport --dports "$NFQ_TCP_PORTS" -j NFQUEUE --queue-num 500 --queue-bypass 2>/dev/null \
+		|| iptables -t mangle -A FORWARD -p tcp -m mark ! --mark "$NFQ_MARK" -m multiport --dports "$NFQ_TCP_PORTS" -j NFQUEUE --queue-num 500 --queue-bypass
+	iptables -t mangle -C FORWARD -p udp -m mark ! --mark "$NFQ_MARK" -m multiport --dports "$NFQ_UDP_PORTS" -j NFQUEUE --queue-num 500 --queue-bypass 2>/dev/null \
+		|| iptables -t mangle -A FORWARD -p udp -m mark ! --mark "$NFQ_MARK" -m multiport --dports "$NFQ_UDP_PORTS" -j NFQUEUE --queue-num 500 --queue-bypass
+}
+
+remove_rules() {
+	iptables -t mangle -D FORWARD -p tcp -m mark ! --mark "$NFQ_MARK" -m multiport --dports "$NFQ_TCP_PORTS" -j NFQUEUE --queue-num 500 --queue-bypass 2>/dev/null
+	iptables -t mangle -D FORWARD -p udp -m mark ! --mark "$NFQ_MARK" -m multiport --dports "$NFQ_UDP_PORTS" -j NFQUEUE --queue-num 500 --queue-bypass 2>/dev/null
+}
+
+pids() { pidof meridian-antidpi 2>/dev/null; }
+
+do_start() {
+	if [ -z "$(pids)" ]; then
+		( trap '' HUP; exec "$BIN" -queue 500 -groups "$GROUPS" -strategy "$STRATEGY" ) < /dev/null >> "$LOG" 2>&1 &
+		sleep 1
+	fi
+	add_rules
+}
+
+do_stop() {
+	remove_rules
+	_p=$(pids)
+	[ -n "$_p" ] || return 0
+	kill -TERM $_p 2>/dev/null
+	_i=0
+	while [ -n "$(pids)" ] && [ "$_i" -lt 5 ]; do sleep 1; _i=$((_i + 1)); done
+	_p=$(pids)
+	[ -n "$_p" ] && kill -KILL $_p 2>/dev/null
+	return 0
+}
+
+case "$1" in
+	start) do_start ;;
+	stop) do_stop ;;
+	restart) do_stop; do_start ;;
+	rules) [ -n "$(pids)" ] && add_rules ;;
+	reload)
+		_p=$(pids)
+		[ -n "$_p" ] || { echo "движок не запущен"; exit 1; }
+		kill -HUP $_p
+		;;
+	*) echo "использование: $0 {start|stop|restart|reload|rules}" ;;
+esac
