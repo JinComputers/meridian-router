@@ -1,0 +1,9 @@
+Package: meridian-web
+Version: 6.44-r1
+Architecture: all
+Installed-Size: 2897920
+Filename: meridian-web_6.44-r1_all.ipk
+Size: 2881347
+SHA256sum: 5a49232f9cffaf5d8f5051d84ab8b18fcdb84a53055a964f3e308e05ba97d3fb
+Description: Meridian VPN — компонент meridian-web (фид «Меридиан», для opkg на старых OpenWrt)
+

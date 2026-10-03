@@ -1,0 +1,4104 @@
+version: 0
+groups:
+    - id: ru-napryamuyu-kot1
+      name: RU напрямую
+      color: ""
+      interface: ""
+      enable: true
+      rules:
+        - id: rud0000
+          name: ""
+          type: namespace
+          rule: 1917live.red
+          enable: true
+        - id: rud0001
+          name: ""
+          type: namespace
+          rule: 24h.tv
+          enable: true
+        - id: rud0002
+          name: ""
+          type: namespace
+          rule: 2gis.ae
+          enable: true
+        - id: rud0003
+          name: ""
+          type: namespace
+          rule: 2gis.am
+          enable: true
+        - id: rud0004
+          name: ""
+          type: namespace
+          rule: 2gis.az
+          enable: true
+        - id: rud0005
+          name: ""
+          type: namespace
+          rule: 2gis.by
+          enable: true
+        - id: rud0006
+          name: ""
+          type: namespace
+          rule: 2gis.com
+          enable: true
+        - id: rud0007
+          name: ""
+          type: namespace
+          rule: 2gis.com.cy
+          enable: true
+        - id: rud0008
+          name: ""
+          type: namespace
+          rule: 2gis.cz
+          enable: true
+        - id: rud0009
+          name: ""
+          type: namespace
+          rule: 2gis.ge
+          enable: true
+        - id: rud0010
+          name: ""
+          type: namespace
+          rule: 2gis.kg
+          enable: true
+        - id: rud0011
+          name: ""
+          type: namespace
+          rule: 2gis.kz
+          enable: true
+        - id: rud0012
+          name: ""
+          type: namespace
+          rule: 2gis.tech
+          enable: true
+        - id: rud0013
+          name: ""
+          type: namespace
+          rule: 2gis.tj
+          enable: true
+        - id: rud0014
+          name: ""
+          type: namespace
+          rule: 2gis.uz
+          enable: true
+        - id: rud0015
+          name: ""
+          type: namespace
+          rule: 3ebra.net
+          enable: true
+        - id: rud0016
+          name: ""
+          type: namespace
+          rule: 4epenaxa.com
+          enable: true
+        - id: rud0017
+          name: ""
+          type: namespace
+          rule: 5post.market
+          enable: true
+        - id: rud0018
+          name: ""
+          type: namespace
+          rule: accesspoint.uz
+          enable: true
+        - id: rud0019
+          name: ""
+          type: namespace
+          rule: acmvid.com
+          enable: true
+        - id: rud0020
+          name: ""
+          type: namespace
+          rule: actualidad-rt.com
+          enable: true
+        - id: rud0021
+          name: ""
+          type: namespace
+          rule: adsadvisor.io
+          enable: true
+        - id: rud0022
+          name: ""
+          type: namespace
+          rule: adygtelecom.com
+          enable: true
+        - id: rud0023
+          name: ""
+          type: namespace
+          rule: ahilesva.info
+          enable: true
+        - id: rud0024
+          name: ""
+          type: namespace
+          rule: alefbank.com
+          enable: true
+        - id: rud0025
+          name: ""
+          type: namespace
+          rule: alfa.me
+          enable: true
+        - id: rud0026
+          name: ""
+          type: namespace
+          rule: alfabank.st
+          enable: true
+        - id: rud0027
+          name: ""
+          type: namespace
+          rule: algoritmika.org
+          enable: true
+        - id: rud0028
+          name: ""
+          type: namespace
+          rule: antiphishing.nl
+          enable: true
+        - id: rud0029
+          name: ""
+          type: namespace
+          rule: aodahl.com
+          enable: true
+        - id: rud0030
+          name: ""
+          type: namespace
+          rule: apptrackpets.com
+          enable: true
+        - id: rud0031
+          name: ""
+          type: namespace
+          rule: armgs.team
+          enable: true
+        - id: rud0032
+          name: ""
+          type: namespace
+          rule: artel.watch
+          enable: true
+        - id: rud0033
+          name: ""
+          type: namespace
+          rule: arteldoc.com
+          enable: true
+        - id: rud0034
+          name: ""
+          type: namespace
+          rule: arteldoc.tv
+          enable: true
+        - id: rud0035
+          name: ""
+          type: namespace
+          rule: asiangooglenetwork.com
+          enable: true
+        - id: rud0036
+          name: ""
+          type: namespace
+          rule: at.ua
+          enable: true
+        - id: rud0037
+          name: ""
+          type: namespace
+          rule: atomyze.tech
+          enable: true
+        - id: rud0038
+          name: ""
+          type: namespace
+          rule: attachmy.com
+          enable: true
+        - id: rud0039
+          name: ""
+          type: namespace
+          rule: autoru.me
+          enable: true
+        - id: rud0040
+          name: ""
+          type: namespace
+          rule: aviasales.com
+          enable: true
+        - id: rud0041
+          name: ""
+          type: namespace
+          rule: avito.st
+          enable: true
+        - id: rud0042
+          name: ""
+          type: namespace
+          rule: avs.io
+          enable: true
+        - id: rud0043
+          name: ""
+          type: namespace
+          rule: baltnews.com
+          enable: true
+        - id: rud0044
+          name: ""
+          type: namespace
+          rule: baltnews.lt
+          enable: true
+        - id: rud0045
+          name: ""
+          type: namespace
+          rule: bank131.com
+          enable: true
+        - id: rud0046
+          name: ""
+          type: namespace
+          rule: baranky.com
+          enable: true
+        - id: rud0047
+          name: ""
+          type: namespace
+          rule: bargipsy.com
+          enable: true
+        - id: rud0048
+          name: ""
+          type: namespace
+          rule: beeline.tv
+          enable: true
+        - id: rud0049
+          name: ""
+          type: namespace
+          rule: beget.com
+          enable: true
+        - id: rud0050
+          name: ""
+          type: namespace
+          rule: best2pay.net
+          enable: true
+        - id: rud0051
+          name: ""
+          type: namespace
+          rule: bizmrg.com
+          enable: true
+        - id: rud0052
+          name: ""
+          type: namespace
+          rule: bk6bba-resources.com
+          enable: true
+        - id: rud0053
+          name: ""
+          type: namespace
+          rule: book1917.live
+          enable: true
+        - id: rud0054
+          name: ""
+          type: namespace
+          rule: boosty.to
+          enable: true
+        - id: rud0055
+          name: ""
+          type: namespace
+          rule: botmechanic.io
+          enable: true
+        - id: rud0056
+          name: ""
+          type: namespace
+          rule: bps-sberbank.by
+          enable: true
+        - id: rud0057
+          name: ""
+          type: namespace
+          rule: cabconnect.org
+          enable: true
+        - id: rud0058
+          name: ""
+          type: namespace
+          rule: callbackkiller.com
+          enable: true
+        - id: rud0059
+          name: ""
+          type: namespace
+          rule: carrot-mail.io
+          enable: true
+        - id: rud0060
+          name: ""
+          type: namespace
+          rule: carrotquest-mail.io
+          enable: true
+        - id: rud0061
+          name: ""
+          type: namespace
+          rule: carrotquest.app
+          enable: true
+        - id: rud0062
+          name: ""
+          type: namespace
+          rule: carrotquest.io
+          enable: true
+        - id: rud0063
+          name: ""
+          type: namespace
+          rule: carrottrack.app
+          enable: true
+        - id: rud0064
+          name: ""
+          type: namespace
+          rule: cbkiller.com
+          enable: true
+        - id: rud0065
+          name: ""
+          type: namespace
+          rule: cdek.shopping
+          enable: true
+        - id: rud0066
+          name: ""
+          type: namespace
+          rule: cdn-vk.net
+          enable: true
+        - id: rud0067
+          name: ""
+          type: namespace
+          rule: cdnvideohub.com
+          enable: true
+        - id: rud0068
+          name: ""
+          type: namespace
+          rule: cert-gib.com
+          enable: true
+        - id: rud0069
+          name: ""
+          type: namespace
+          rule: chipcore.com
+          enable: true
+        - id: rud0070
+          name: ""
+          type: namespace
+          rule: chizhik.club
+          enable: true
+        - id: rud0071
+          name: ""
+          type: namespace
+          rule: cian.site
+          enable: true
+        - id: rud0072
+          name: ""
+          type: namespace
+          rule: ciciq.net
+          enable: true
+        - id: rud0073
+          name: ""
+          type: namespace
+          rule: cloudru.cn
+          enable: true
+        - id: rud0074
+          name: ""
+          type: namespace
+          rule: clstorage.net
+          enable: true
+        - id: rud0075
+          name: ""
+          type: namespace
+          rule: cm.expert
+          enable: true
+        - id: rud0076
+          name: ""
+          type: namespace
+          rule: codeseason.by
+          enable: true
+        - id: rud0077
+          name: ""
+          type: namespace
+          rule: comss.club
+          enable: true
+        - id: rud0078
+          name: ""
+          type: namespace
+          rule: comss.info
+          enable: true
+        - id: rud0079
+          name: ""
+          type: namespace
+          rule: comss.me
+          enable: true
+        - id: rud0080
+          name: ""
+          type: namespace
+          rule: comss.net
+          enable: true
+        - id: rud0081
+          name: ""
+          type: namespace
+          rule: comss.news
+          enable: true
+        - id: rud0082
+          name: ""
+          type: namespace
+          rule: comss.one
+          enable: true
+        - id: rud0083
+          name: ""
+          type: namespace
+          rule: comss.online
+          enable: true
+        - id: rud0084
+          name: ""
+          type: namespace
+          rule: comss.org
+          enable: true
+        - id: rud0085
+          name: ""
+          type: namespace
+          rule: copymonkey.app
+          enable: true
+        - id: rud0086
+          name: ""
+          type: namespace
+          rule: corp.express
+          enable: true
+        - id: rud0087
+          name: ""
+          type: namespace
+          rule: cups.online
+          enable: true
+        - id: rud0088
+          name: ""
+          type: namespace
+          rule: cybercrimecon.com
+          enable: true
+        - id: rud0089
+          name: ""
+          type: namespace
+          rule: dahlmessenger.com
+          enable: true
+        - id: rud0090
+          name: ""
+          type: namespace
+          rule: dashly.app
+          enable: true
+        - id: rud0091
+          name: ""
+          type: namespace
+          rule: dashly.help
+          enable: true
+        - id: rud0092
+          name: ""
+          type: namespace
+          rule: dashly.io
+          enable: true
+        - id: rud0093
+          name: ""
+          type: namespace
+          rule: dashly.me
+          enable: true
+        - id: rud0094
+          name: ""
+          type: namespace
+          rule: dashlytrack.app
+          enable: true
+        - id: rud0095
+          name: ""
+          type: namespace
+          rule: datacloudmy.com
+          enable: true
+        - id: rud0096
+          name: ""
+          type: namespace
+          rule: dbo-dengi.online
+          enable: true
+        - id: rud0097
+          name: ""
+          type: namespace
+          rule: de-rt.com
+          enable: true
+        - id: rud0098
+          name: ""
+          type: namespace
+          rule: de-rt.org
+          enable: true
+        - id: rud0099
+          name: ""
+          type: namespace
+          rule: de-rtnews.com
+          enable: true
+        - id: rud0100
+          name: ""
+          type: namespace
+          rule: de-rtnews.net
+          enable: true
+        - id: rud0101
+          name: ""
+          type: namespace
+          rule: dert.online
+          enable: true
+        - id: rud0102
+          name: ""
+          type: namespace
+          rule: dert.site
+          enable: true
+        - id: rud0103
+          name: ""
+          type: namespace
+          rule: dert.tech
+          enable: true
+        - id: rud0104
+          name: ""
+          type: namespace
+          rule: dev-my.com
+          enable: true
+        - id: rud0105
+          name: ""
+          type: namespace
+          rule: dev-my.games
+          enable: true
+        - id: rud0106
+          name: ""
+          type: namespace
+          rule: dodois.com
+          enable: true
+        - id: rud0107
+          name: ""
+          type: namespace
+          rule: dodois.io
+          enable: true
+        - id: rud0108
+          name: ""
+          type: namespace
+          rule: dodopizza.com
+          enable: true
+        - id: rud0109
+          name: ""
+          type: namespace
+          rule: dodostatic.net
+          enable: true
+        - id: rud0110
+          name: ""
+          type: namespace
+          rule: donationalerts.com
+          enable: true
+        - id: rud0111
+          name: ""
+          type: namespace
+          rule: driveawaytaxi.org
+          enable: true
+        - id: rud0112
+          name: ""
+          type: namespace
+          rule: drobbox.pro
+          enable: true
+        - id: rud0113
+          name: ""
+          type: namespace
+          rule: drweb-av.de
+          enable: true
+        - id: rud0114
+          name: ""
+          type: namespace
+          rule: drweb-av.es
+          enable: true
+        - id: rud0115
+          name: ""
+          type: namespace
+          rule: drweb-av.it
+          enable: true
+        - id: rud0116
+          name: ""
+          type: namespace
+          rule: drweb-av.pl
+          enable: true
+        - id: rud0117
+          name: ""
+          type: namespace
+          rule: drweb.by
+          enable: true
+        - id: rud0118
+          name: ""
+          type: namespace
+          rule: drweb.cn
+          enable: true
+        - id: rud0119
+          name: ""
+          type: namespace
+          rule: drweb.co.jp
+          enable: true
+        - id: rud0120
+          name: ""
+          type: namespace
+          rule: drweb.com
+          enable: true
+        - id: rud0121
+          name: ""
+          type: namespace
+          rule: drweb.fr
+          enable: true
+        - id: rud0122
+          name: ""
+          type: namespace
+          rule: drweb.kz
+          enable: true
+        - id: rud0123
+          name: ""
+          type: namespace
+          rule: drweb.uz
+          enable: true
+        - id: rud0124
+          name: ""
+          type: namespace
+          rule: durovscode.com
+          enable: true
+        - id: rud0125
+          name: ""
+          type: namespace
+          rule: eadaily.com
+          enable: true
+        - id: rud0126
+          name: ""
+          type: namespace
+          rule: eadaily.info
+          enable: true
+        - id: rud0127
+          name: ""
+          type: namespace
+          rule: eadaily.net
+          enable: true
+        - id: rud0128
+          name: ""
+          type: namespace
+          rule: eadaily.org
+          enable: true
+        - id: rud0129
+          name: ""
+          type: namespace
+          rule: eaptechka.online
+          enable: true
+        - id: rud0130
+          name: ""
+          type: namespace
+          rule: edu22.info
+          enable: true
+        - id: rud0131
+          name: ""
+          type: namespace
+          rule: eligens.cl
+          enable: true
+        - id: rud0132
+          name: ""
+          type: namespace
+          rule: eligens.com.br
+          enable: true
+        - id: rud0133
+          name: ""
+          type: namespace
+          rule: eligens.io
+          enable: true
+        - id: rud0134
+          name: ""
+          type: namespace
+          rule: emias.info
+          enable: true
+        - id: rud0135
+          name: ""
+          type: namespace
+          rule: envybox.company
+          enable: true
+        - id: rud0136
+          name: ""
+          type: namespace
+          rule: envybox.family
+          enable: true
+        - id: rud0137
+          name: ""
+          type: namespace
+          rule: envybox.io
+          enable: true
+        - id: rud0138
+          name: ""
+          type: namespace
+          rule: envybox.kg
+          enable: true
+        - id: rud0139
+          name: ""
+          type: namespace
+          rule: envycdp.com
+          enable: true
+        - id: rud0140
+          name: ""
+          type: namespace
+          rule: envycrm.com
+          enable: true
+        - id: rud0141
+          name: ""
+          type: namespace
+          rule: epicevents.gg
+          enable: true
+        - id: rud0142
+          name: ""
+          type: namespace
+          rule: es-rt.com
+          enable: true
+        - id: rud0143
+          name: ""
+          type: namespace
+          rule: esforce.com
+          enable: true
+        - id: rud0144
+          name: ""
+          type: namespace
+          rule: esrt.online
+          enable: true
+        - id: rud0145
+          name: ""
+          type: namespace
+          rule: esrt.press
+          enable: true
+        - id: rud0146
+          name: ""
+          type: namespace
+          rule: esrt.site
+          enable: true
+        - id: rud0147
+          name: ""
+          type: namespace
+          rule: esrt.space
+          enable: true
+        - id: rud0148
+          name: ""
+          type: namespace
+          rule: esrt.tech
+          enable: true
+        - id: rud0149
+          name: ""
+          type: namespace
+          rule: esrt.website
+          enable: true
+        - id: rud0150
+          name: ""
+          type: namespace
+          rule: etna.ai
+          enable: true
+        - id: rud0151
+          name: ""
+          type: namespace
+          rule: evrasia.rest
+          enable: true
+        - id: rud0152
+          name: ""
+          type: namespace
+          rule: ewisdom.us.kg
+          enable: true
+        - id: rud0153
+          name: ""
+          type: namespace
+          rule: express.ms
+          enable: true
+        - id: rud0154
+          name: ""
+          type: namespace
+          rule: f6.dev
+          enable: true
+        - id: rud0155
+          name: ""
+          type: namespace
+          rule: f6.security
+          enable: true
+        - id: rud0156
+          name: ""
+          type: namespace
+          rule: facct.email
+          enable: true
+        - id: rud0157
+          name: ""
+          type: namespace
+          rule: fix-price.com
+          enable: true
+        - id: rud0158
+          name: ""
+          type: namespace
+          rule: flocktory.com
+          enable: true
+        - id: rud0159
+          name: ""
+          type: namespace
+          rule: flomni.com
+          enable: true
+        - id: rud0160
+          name: ""
+          type: namespace
+          rule: flowwow-images.com
+          enable: true
+        - id: rud0161
+          name: ""
+          type: namespace
+          rule: flowwow.com
+          enable: true
+        - id: rud0162
+          name: ""
+          type: namespace
+          rule: fon.bet
+          enable: true
+        - id: rud0163
+          name: ""
+          type: namespace
+          rule: fon.promo
+          enable: true
+        - id: rud0164
+          name: ""
+          type: namespace
+          rule: foto-planeta.com
+          enable: true
+        - id: rud0165
+          name: ""
+          type: namespace
+          rule: freeassange.tech
+          enable: true
+        - id: rud0166
+          name: ""
+          type: namespace
+          rule: freede.tech
+          enable: true
+        - id: rud0167
+          name: ""
+          type: namespace
+          rule: freedert.online
+          enable: true
+        - id: rud0168
+          name: ""
+          type: namespace
+          rule: funpay.com
+          enable: true
+        - id: rud0169
+          name: ""
+          type: namespace
+          rule: g-ib.ae
+          enable: true
+        - id: rud0170
+          name: ""
+          type: namespace
+          rule: g-ib.sg
+          enable: true
+        - id: rud0171
+          name: ""
+          type: namespace
+          rule: g-ib.us
+          enable: true
+        - id: rud0172
+          name: ""
+          type: namespace
+          rule: gazetarussa.com.br
+          enable: true
+        - id: rud0173
+          name: ""
+          type: namespace
+          rule: gazprombank.com
+          enable: true
+        - id: rud0174
+          name: ""
+          type: namespace
+          rule: gazprombank.investments
+          enable: true
+        - id: rud0175
+          name: ""
+          type: namespace
+          rule: genetic-technologies.am
+          enable: true
+        - id: rud0176
+          name: ""
+          type: namespace
+          rule: genotek.am
+          enable: true
+        - id: rud0177
+          name: ""
+          type: namespace
+          rule: genotek.es
+          enable: true
+        - id: rud0178
+          name: ""
+          type: namespace
+          rule: genotek.eu
+          enable: true
+        - id: rud0179
+          name: ""
+          type: namespace
+          rule: genotek.health
+          enable: true
+        - id: rud0180
+          name: ""
+          type: namespace
+          rule: gerwin.io
+          enable: true
+        - id: rud0181
+          name: ""
+          type: namespace
+          rule: getsynapse.io
+          enable: true
+        - id: rud0182
+          name: ""
+          type: namespace
+          rule: gib-global.com
+          enable: true
+        - id: rud0183
+          name: ""
+          type: namespace
+          rule: gib.sg
+          enable: true
+        - id: rud0184
+          name: ""
+          type: namespace
+          rule: gibdev.net
+          enable: true
+        - id: rud0185
+          name: ""
+          type: namespace
+          rule: giga.chat
+          enable: true
+        - id: rud0186
+          name: ""
+          type: namespace
+          rule: gismeteo.by
+          enable: true
+        - id: rud0187
+          name: ""
+          type: namespace
+          rule: gismeteo.com
+          enable: true
+        - id: rud0188
+          name: ""
+          type: namespace
+          rule: gismeteo.net
+          enable: true
+        - id: rud0189
+          name: ""
+          type: namespace
+          rule: gismeteo.st
+          enable: true
+        - id: rud0190
+          name: ""
+          type: namespace
+          rule: gogettaxi.org
+          enable: true
+        - id: rud0191
+          name: ""
+          type: namespace
+          rule: goicq.org
+          enable: true
+        - id: rud0192
+          name: ""
+          type: namespace
+          rule: gorzdrav.org
+          enable: true
+        - id: rud0193
+          name: ""
+          type: namespace
+          rule: goup.ai
+          enable: true
+        - id: rud0194
+          name: ""
+          type: namespace
+          rule: gramotei.online
+          enable: true
+        - id: rud0195
+          name: ""
+          type: namespace
+          rule: green-box-tv.com
+          enable: true
+        - id: rud0196
+          name: ""
+          type: namespace
+          rule: greywallpass.com
+          enable: true
+        - id: rud0197
+          name: ""
+          type: namespace
+          rule: group-ib.ae
+          enable: true
+        - id: rud0198
+          name: ""
+          type: namespace
+          rule: group-ib.co.uk
+          enable: true
+        - id: rud0199
+          name: ""
+          type: namespace
+          rule: group-ib.com
+          enable: true
+        - id: rud0200
+          name: ""
+          type: namespace
+          rule: group-ib.de
+          enable: true
+        - id: rud0201
+          name: ""
+          type: namespace
+          rule: group-ib.eu
+          enable: true
+        - id: rud0202
+          name: ""
+          type: namespace
+          rule: group-ib.sg
+          enable: true
+        - id: rud0203
+          name: ""
+          type: namespace
+          rule: group-ib.us
+          enable: true
+        - id: rud0204
+          name: ""
+          type: namespace
+          rule: groupib.ae
+          enable: true
+        - id: rud0205
+          name: ""
+          type: namespace
+          rule: groupib.sg
+          enable: true
+        - id: rud0206
+          name: ""
+          type: namespace
+          rule: groupib.us
+          enable: true
+        - id: rud0207
+          name: ""
+          type: namespace
+          rule: gw2ru.com
+          enable: true
+        - id: rud0208
+          name: ""
+          type: namespace
+          rule: haicomdc.com
+          enable: true
+        - id: rud0209
+          name: ""
+          type: namespace
+          rule: hayya.ae
+          enable: true
+        - id: rud0210
+          name: ""
+          type: namespace
+          rule: hh.by
+          enable: true
+        - id: rud0211
+          name: ""
+          type: namespace
+          rule: hh.kz
+          enable: true
+        - id: rud0212
+          name: ""
+          type: namespace
+          rule: hva.im
+          enable: true
+        - id: rud0213
+          name: ""
+          type: namespace
+          rule: icq-download.com
+          enable: true
+        - id: rud0214
+          name: ""
+          type: namespace
+          rule: icq-mobile.com
+          enable: true
+        - id: rud0215
+          name: ""
+          type: namespace
+          rule: icq-online.com
+          enable: true
+        - id: rud0216
+          name: ""
+          type: namespace
+          rule: icq-phone.com
+          enable: true
+        - id: rud0217
+          name: ""
+          type: namespace
+          rule: icq-phone.org
+          enable: true
+        - id: rud0218
+          name: ""
+          type: namespace
+          rule: icq.asia
+          enable: true
+        - id: rud0219
+          name: ""
+          type: namespace
+          rule: icq.at
+          enable: true
+        - id: rud0220
+          name: ""
+          type: namespace
+          rule: icq.biz
+          enable: true
+        - id: rud0221
+          name: ""
+          type: namespace
+          rule: icq.com
+          enable: true
+        - id: rud0222
+          name: ""
+          type: namespace
+          rule: icq.de
+          enable: true
+        - id: rud0223
+          name: ""
+          type: namespace
+          rule: icq.eu
+          enable: true
+        - id: rud0224
+          name: ""
+          type: namespace
+          rule: icq.fr
+          enable: true
+        - id: rud0225
+          name: ""
+          type: namespace
+          rule: icq.im
+          enable: true
+        - id: rud0226
+          name: ""
+          type: namespace
+          rule: icq.lt
+          enable: true
+        - id: rud0227
+          name: ""
+          type: namespace
+          rule: icq.mobi
+          enable: true
+        - id: rud0228
+          name: ""
+          type: namespace
+          rule: icq.org
+          enable: true
+        - id: rud0229
+          name: ""
+          type: namespace
+          rule: icq.sg
+          enable: true
+        - id: rud0230
+          name: ""
+          type: namespace
+          rule: icq2mobile.com
+          enable: true
+        - id: rud0231
+          name: ""
+          type: namespace
+          rule: icq5.com
+          enable: true
+        - id: rud0232
+          name: ""
+          type: namespace
+          rule: icqanywhere.com
+          enable: true
+        - id: rud0233
+          name: ""
+          type: namespace
+          rule: icqbrasil.com
+          enable: true
+        - id: rud0234
+          name: ""
+          type: namespace
+          rule: icqbrazil.com
+          enable: true
+        - id: rud0235
+          name: ""
+          type: namespace
+          rule: icqchat.com
+          enable: true
+        - id: rud0236
+          name: ""
+          type: namespace
+          rule: icqflirting.com
+          enable: true
+        - id: rud0237
+          name: ""
+          type: namespace
+          rule: icqgame.com
+          enable: true
+        - id: rud0238
+          name: ""
+          type: namespace
+          rule: icqgames.com
+          enable: true
+        - id: rud0239
+          name: ""
+          type: namespace
+          rule: icqkids.com
+          enable: true
+        - id: rud0240
+          name: ""
+          type: namespace
+          rule: icqmail.com
+          enable: true
+        - id: rud0241
+          name: ""
+          type: namespace
+          rule: icqmail.net
+          enable: true
+        - id: rud0242
+          name: ""
+          type: namespace
+          rule: icqonline.com
+          enable: true
+        - id: rud0243
+          name: ""
+          type: namespace
+          rule: icqpassword.com
+          enable: true
+        - id: rud0244
+          name: ""
+          type: namespace
+          rule: icqpeople.com
+          enable: true
+        - id: rud0245
+          name: ""
+          type: namespace
+          rule: icqservers.com
+          enable: true
+        - id: rud0246
+          name: ""
+          type: namespace
+          rule: icqservice.com
+          enable: true
+        - id: rud0247
+          name: ""
+          type: namespace
+          rule: icqsupportteam.com
+          enable: true
+        - id: rud0248
+          name: ""
+          type: namespace
+          rule: icqsystem.com
+          enable: true
+        - id: rud0249
+          name: ""
+          type: namespace
+          rule: icqsystems.com
+          enable: true
+        - id: rud0250
+          name: ""
+          type: namespace
+          rule: icqtoday.com
+          enable: true
+        - id: rud0251
+          name: ""
+          type: namespace
+          rule: icqtutor.com
+          enable: true
+        - id: rud0252
+          name: ""
+          type: namespace
+          rule: icqvideo.com
+          enable: true
+        - id: rud0253
+          name: ""
+          type: namespace
+          rule: ideco.dev
+          enable: true
+        - id: rud0254
+          name: ""
+          type: namespace
+          rule: it-territory.com
+          enable: true
+        - id: rud0255
+          name: ""
+          type: namespace
+          rule: ivicdn.tv
+          enable: true
+        - id: rud0256
+          name: ""
+          type: namespace
+          rule: ixbt.com
+          enable: true
+        - id: rud0257
+          name: ""
+          type: namespace
+          rule: ixbt.games
+          enable: true
+        - id: rud0258
+          name: ""
+          type: namespace
+          rule: ixbt.market
+          enable: true
+        - id: rud0259
+          name: ""
+          type: namespace
+          rule: ixbt.media
+          enable: true
+        - id: rud0260
+          name: ""
+          type: namespace
+          rule: ixbt.pro
+          enable: true
+        - id: rud0261
+          name: ""
+          type: namespace
+          rule: ixbt.shop
+          enable: true
+        - id: rud0262
+          name: ""
+          type: namespace
+          rule: ixbt.site
+          enable: true
+        - id: rud0263
+          name: ""
+          type: namespace
+          rule: ixbt.video
+          enable: true
+        - id: rud0264
+          name: ""
+          type: namespace
+          rule: jinrieluosi.cn
+          enable: true
+        - id: rud0265
+          name: ""
+          type: namespace
+          rule: jivo.chat
+          enable: true
+        - id: rud0266
+          name: ""
+          type: namespace
+          rule: jivochat.co.in
+          enable: true
+        - id: rud0267
+          name: ""
+          type: namespace
+          rule: jivochat.co.za
+          enable: true
+        - id: rud0268
+          name: ""
+          type: namespace
+          rule: jivochat.com
+          enable: true
+        - id: rud0269
+          name: ""
+          type: namespace
+          rule: jivochat.com.br
+          enable: true
+        - id: rud0270
+          name: ""
+          type: namespace
+          rule: jivochat.com.co
+          enable: true
+        - id: rud0271
+          name: ""
+          type: namespace
+          rule: jivochat.com.pe
+          enable: true
+        - id: rud0272
+          name: ""
+          type: namespace
+          rule: jivochat.com.tr
+          enable: true
+        - id: rud0273
+          name: ""
+          type: namespace
+          rule: jivochat.de
+          enable: true
+        - id: rud0274
+          name: ""
+          type: namespace
+          rule: jivochat.es
+          enable: true
+        - id: rud0275
+          name: ""
+          type: namespace
+          rule: jivochat.ng
+          enable: true
+        - id: rud0276
+          name: ""
+          type: namespace
+          rule: jivosite.com
+          enable: true
+        - id: rud0277
+          name: ""
+          type: namespace
+          rule: jump.taxi
+          enable: true
+        - id: rud0278
+          name: ""
+          type: namespace
+          rule: justveryok.com
+          enable: true
+        - id: rud0279
+          name: ""
+          type: namespace
+          rule: kaspersky-labs.com
+          enable: true
+        - id: rud0280
+          name: ""
+          type: namespace
+          rule: kaspersky.be
+          enable: true
+        - id: rud0281
+          name: ""
+          type: namespace
+          rule: kaspersky.ca
+          enable: true
+        - id: rud0282
+          name: ""
+          type: namespace
+          rule: kaspersky.co.in
+          enable: true
+        - id: rud0283
+          name: ""
+          type: namespace
+          rule: kaspersky.co.jp
+          enable: true
+        - id: rud0284
+          name: ""
+          type: namespace
+          rule: kaspersky.co.kr
+          enable: true
+        - id: rud0285
+          name: ""
+          type: namespace
+          rule: kaspersky.co.th
+          enable: true
+        - id: rud0286
+          name: ""
+          type: namespace
+          rule: kaspersky.co.uk
+          enable: true
+        - id: rud0287
+          name: ""
+          type: namespace
+          rule: kaspersky.co.za
+          enable: true
+        - id: rud0288
+          name: ""
+          type: namespace
+          rule: kaspersky.com
+          enable: true
+        - id: rud0289
+          name: ""
+          type: namespace
+          rule: kaspersky.com.au
+          enable: true
+        - id: rud0290
+          name: ""
+          type: namespace
+          rule: kaspersky.com.br
+          enable: true
+        - id: rud0291
+          name: ""
+          type: namespace
+          rule: kaspersky.com.cn
+          enable: true
+        - id: rud0292
+          name: ""
+          type: namespace
+          rule: kaspersky.com.hk
+          enable: true
+        - id: rud0293
+          name: ""
+          type: namespace
+          rule: kaspersky.com.pl
+          enable: true
+        - id: rud0294
+          name: ""
+          type: namespace
+          rule: kaspersky.com.tr
+          enable: true
+        - id: rud0295
+          name: ""
+          type: namespace
+          rule: kaspersky.com.tw
+          enable: true
+        - id: rud0296
+          name: ""
+          type: namespace
+          rule: kaspersky.com.vn
+          enable: true
+        - id: rud0297
+          name: ""
+          type: namespace
+          rule: kaspersky.cz
+          enable: true
+        - id: rud0298
+          name: ""
+          type: namespace
+          rule: kaspersky.de
+          enable: true
+        - id: rud0299
+          name: ""
+          type: namespace
+          rule: kaspersky.dk
+          enable: true
+        - id: rud0300
+          name: ""
+          type: namespace
+          rule: kaspersky.dz
+          enable: true
+        - id: rud0301
+          name: ""
+          type: namespace
+          rule: kaspersky.es
+          enable: true
+        - id: rud0302
+          name: ""
+          type: namespace
+          rule: kaspersky.fi
+          enable: true
+        - id: rud0303
+          name: ""
+          type: namespace
+          rule: kaspersky.fr
+          enable: true
+        - id: rud0304
+          name: ""
+          type: namespace
+          rule: kaspersky.gr
+          enable: true
+        - id: rud0305
+          name: ""
+          type: namespace
+          rule: kaspersky.it
+          enable: true
+        - id: rud0306
+          name: ""
+          type: namespace
+          rule: kaspersky.kz
+          enable: true
+        - id: rud0307
+          name: ""
+          type: namespace
+          rule: kaspersky.ma
+          enable: true
+        - id: rud0308
+          name: ""
+          type: namespace
+          rule: kaspersky.my
+          enable: true
+        - id: rud0309
+          name: ""
+          type: namespace
+          rule: kaspersky.nl
+          enable: true
+        - id: rud0310
+          name: ""
+          type: namespace
+          rule: kaspersky.pt
+          enable: true
+        - id: rud0311
+          name: ""
+          type: namespace
+          rule: kaspersky.ro
+          enable: true
+        - id: rud0312
+          name: ""
+          type: namespace
+          rule: kaspersky.rs
+          enable: true
+        - id: rud0313
+          name: ""
+          type: namespace
+          rule: kaspersky.se
+          enable: true
+        - id: rud0314
+          name: ""
+          type: namespace
+          rule: keyboardmen.com
+          enable: true
+        - id: rud0315
+          name: ""
+          type: namespace
+          rule: khangar.net
+          enable: true
+        - id: rud0316
+          name: ""
+          type: namespace
+          rule: kinescopecdn.net
+          enable: true
+        - id: rud0317
+          name: ""
+          type: namespace
+          rule: kinorium.com
+          enable: true
+        - id: rud0318
+          name: ""
+          type: namespace
+          rule: knightspeak.com
+          enable: true
+        - id: rud0319
+          name: ""
+          type: namespace
+          rule: kontur-inc.com
+          enable: true
+        - id: rud0320
+          name: ""
+          type: namespace
+          rule: kontur.host
+          enable: true
+        - id: rud0321
+          name: ""
+          type: namespace
+          rule: korona.com
+          enable: true
+        - id: rud0322
+          name: ""
+          type: namespace
+          rule: koshelek.app
+          enable: true
+        - id: rud0323
+          name: ""
+          type: namespace
+          rule: ktech.team
+          enable: true
+        - id: rud0324
+          name: ""
+          type: namespace
+          rule: lenta.com
+          enable: true
+        - id: rud0325
+          name: ""
+          type: namespace
+          rule: lenta.tech
+          enable: true
+        - id: rud0326
+          name: ""
+          type: namespace
+          rule: lovina.app
+          enable: true
+        - id: rud0327
+          name: ""
+          type: namespace
+          rule: magnit.com
+          enable: true
+        - id: rud0328
+          name: ""
+          type: namespace
+          rule: mail-carrotquest.io
+          enable: true
+        - id: rud0329
+          name: ""
+          type: namespace
+          rule: mailicq.org
+          enable: true
+        - id: rud0330
+          name: ""
+          type: namespace
+          rule: mcc250.pub.3gppnetwork.org
+          enable: true
+        - id: rud0331
+          name: ""
+          type: namespace
+          rule: mcs.st
+          enable: true
+        - id: rud0332
+          name: ""
+          type: namespace
+          rule: medsi.com
+          enable: true
+        - id: rud0333
+          name: ""
+          type: namespace
+          rule: medsi.pro
+          enable: true
+        - id: rud0334
+          name: ""
+          type: namespace
+          rule: megafon.com
+          enable: true
+        - id: rud0335
+          name: ""
+          type: namespace
+          rule: megamarket.tech
+          enable: true
+        - id: rud0336
+          name: ""
+          type: namespace
+          rule: mel.fm
+          enable: true
+        - id: rud0337
+          name: ""
+          type: namespace
+          rule: memealerts.com
+          enable: true
+        - id: rud0338
+          name: ""
+          type: namespace
+          rule: meteofor.com
+          enable: true
+        - id: rud0339
+          name: ""
+          type: namespace
+          rule: meteofor.st
+          enable: true
+        - id: rud0340
+          name: ""
+          type: namespace
+          rule: meteum.ai
+          enable: true
+        - id: rud0341
+          name: ""
+          type: namespace
+          rule: mfa.center
+          enable: true
+        - id: rud0342
+          name: ""
+          type: namespace
+          rule: mindbox.cloud
+          enable: true
+        - id: rud0343
+          name: ""
+          type: namespace
+          rule: mindbox.group
+          enable: true
+        - id: rud0344
+          name: ""
+          type: namespace
+          rule: mindbox.site
+          enable: true
+        - id: rud0345
+          name: ""
+          type: namespace
+          rule: mindbox.so
+          enable: true
+        - id: rud0346
+          name: ""
+          type: namespace
+          rule: mirabilis.com
+          enable: true
+        - id: rud0347
+          name: ""
+          type: namespace
+          rule: mirandaicq.com
+          enable: true
+        - id: rud0348
+          name: ""
+          type: namespace
+          rule: mobile-bb.com
+          enable: true
+        - id: rud0349
+          name: ""
+          type: namespace
+          rule: mobile-icq.com
+          enable: true
+        - id: rud0350
+          name: ""
+          type: namespace
+          rule: mobileicq.com
+          enable: true
+        - id: rud0351
+          name: ""
+          type: namespace
+          rule: moex.com
+          enable: true
+        - id: rud0352
+          name: ""
+          type: namespace
+          rule: more.tv
+          enable: true
+        - id: rud0353
+          name: ""
+          type: namespace
+          rule: moscow
+          enable: true
+        - id: rud0354
+          name: ""
+          type: namespace
+          rule: mosmetro.tech
+          enable: true
+        - id: rud0355
+          name: ""
+          type: namespace
+          rule: movika.com
+          enable: true
+        - id: rud0356
+          name: ""
+          type: namespace
+          rule: mp.world
+          enable: true
+        - id: rud0357
+          name: ""
+          type: namespace
+          rule: mpgw-my.com
+          enable: true
+        - id: rud0358
+          name: ""
+          type: namespace
+          rule: mradx.net
+          enable: true
+        - id: rud0359
+          name: ""
+          type: namespace
+          rule: mts-ws.net
+          enable: true
+        - id: rud0360
+          name: ""
+          type: namespace
+          rule: mvideo.edna.io
+          enable: true
+        - id: rud0361
+          name: ""
+          type: namespace
+          rule: mvk.com
+          enable: true
+        - id: rud0362
+          name: ""
+          type: namespace
+          rule: my-manager-account.com
+          enable: true
+        - id: rud0363
+          name: ""
+          type: namespace
+          rule: my.com
+          enable: true
+        - id: rud0364
+          name: ""
+          type: namespace
+          rule: my.games
+          enable: true
+        - id: rud0365
+          name: ""
+          type: namespace
+          rule: myadx.net
+          enable: true
+        - id: rud0366
+          name: ""
+          type: namespace
+          rule: mycdn.me
+          enable: true
+        - id: rud0367
+          name: ""
+          type: namespace
+          rule: myoffice.team
+          enable: true
+        - id: rud0368
+          name: ""
+          type: namespace
+          rule: mytopf.com
+          enable: true
+        - id: rud0369
+          name: ""
+          type: namespace
+          rule: mytrk.link
+          enable: true
+        - id: rud0370
+          name: ""
+          type: namespace
+          rule: naydex.net
+          enable: true
+        - id: rud0371
+          name: ""
+          type: namespace
+          rule: neon.click
+          enable: true
+        - id: rud0372
+          name: ""
+          type: namespace
+          rule: netcraze.club
+          enable: true
+        - id: rud0373
+          name: ""
+          type: namespace
+          rule: netcraze.link
+          enable: true
+        - id: rud0374
+          name: ""
+          type: namespace
+          rule: netcraze.pro
+          enable: true
+        - id: rud0375
+          name: ""
+          type: namespace
+          rule: netmonet.co
+          enable: true
+        - id: rud0376
+          name: ""
+          type: namespace
+          rule: netschool.website
+          enable: true
+        - id: rud0377
+          name: ""
+          type: namespace
+          rule: ngenix.net
+          enable: true
+        - id: rud0378
+          name: ""
+          type: namespace
+          rule: noticias-rt.com
+          enable: true
+        - id: rud0379
+          name: ""
+          type: namespace
+          rule: notimundo.press
+          enable: true
+        - id: rud0380
+          name: ""
+          type: namespace
+          rule: odnoklasniki.by
+          enable: true
+        - id: rud0381
+          name: ""
+          type: namespace
+          rule: odnoklasniki.ua
+          enable: true
+        - id: rud0382
+          name: ""
+          type: namespace
+          rule: odnoklassniki.am
+          enable: true
+        - id: rud0383
+          name: ""
+          type: namespace
+          rule: odnoklassniki.by
+          enable: true
+        - id: rud0384
+          name: ""
+          type: namespace
+          rule: odnoklassniki.co.ee
+          enable: true
+        - id: rud0385
+          name: ""
+          type: namespace
+          rule: odnoklassniki.eu
+          enable: true
+        - id: rud0386
+          name: ""
+          type: namespace
+          rule: odnoklassniki.lv
+          enable: true
+        - id: rud0387
+          name: ""
+          type: namespace
+          rule: odnoklassniki.tj
+          enable: true
+        - id: rud0388
+          name: ""
+          type: namespace
+          rule: ognihome.com
+          enable: true
+        - id: rud0389
+          name: ""
+          type: namespace
+          rule: ok.me
+          enable: true
+        - id: rud0390
+          name: ""
+          type: namespace
+          rule: okko.sport
+          enable: true
+        - id: rud0391
+          name: ""
+          type: namespace
+          rule: okko.tv
+          enable: true
+        - id: rud0392
+          name: ""
+          type: namespace
+          rule: okkoapi.tv
+          enable: true
+        - id: rud0393
+          name: ""
+          type: namespace
+          rule: okl.lt
+          enable: true
+        - id: rud0394
+          name: ""
+          type: namespace
+          rule: okolo.app
+          enable: true
+        - id: rud0395
+          name: ""
+          type: namespace
+          rule: opennet.dev
+          enable: true
+        - id: rud0396
+          name: ""
+          type: namespace
+          rule: oskelly.co
+          enable: true
+        - id: rud0397
+          name: ""
+          type: namespace
+          rule: ostin.com
+          enable: true
+        - id: rud0398
+          name: ""
+          type: namespace
+          rule: ozon.app
+          enable: true
+        - id: rud0399
+          name: ""
+          type: namespace
+          rule: ozon.by
+          enable: true
+        - id: rud0400
+          name: ""
+          type: namespace
+          rule: ozon.com
+          enable: true
+        - id: rud0401
+          name: ""
+          type: namespace
+          rule: ozon.com.by
+          enable: true
+        - id: rud0402
+          name: ""
+          type: namespace
+          rule: ozon.com.kz
+          enable: true
+        - id: rud0403
+          name: ""
+          type: namespace
+          rule: ozon.dev
+          enable: true
+        - id: rud0404
+          name: ""
+          type: namespace
+          rule: ozon.express
+          enable: true
+        - id: rud0405
+          name: ""
+          type: namespace
+          rule: ozon.global
+          enable: true
+        - id: rud0406
+          name: ""
+          type: namespace
+          rule: ozon.kz
+          enable: true
+        - id: rud0407
+          name: ""
+          type: namespace
+          rule: ozon.li
+          enable: true
+        - id: rud0408
+          name: ""
+          type: namespace
+          rule: ozon.market
+          enable: true
+        - id: rud0409
+          name: ""
+          type: namespace
+          rule: ozon.tech
+          enable: true
+        - id: rud0410
+          name: ""
+          type: namespace
+          rule: ozon.tm
+          enable: true
+        - id: rud0411
+          name: ""
+          type: namespace
+          rule: ozon.travel
+          enable: true
+        - id: rud0412
+          name: ""
+          type: namespace
+          rule: ozoncamp.pro
+          enable: true
+        - id: rud0413
+          name: ""
+          type: namespace
+          rule: ozoncom.by
+          enable: true
+        - id: rud0414
+          name: ""
+          type: namespace
+          rule: ozonglobalevents.com
+          enable: true
+        - id: rud0415
+          name: ""
+          type: namespace
+          rule: ozonpartners.by
+          enable: true
+        - id: rud0416
+          name: ""
+          type: namespace
+          rule: ozonrocet.by
+          enable: true
+        - id: rud0417
+          name: ""
+          type: namespace
+          rule: ozonroket.by
+          enable: true
+        - id: rud0418
+          name: ""
+          type: namespace
+          rule: ozonru.co.il
+          enable: true
+        - id: rud0419
+          name: ""
+          type: namespace
+          rule: ozonru.com
+          enable: true
+        - id: rud0420
+          name: ""
+          type: namespace
+          rule: ozonru.eu
+          enable: true
+        - id: rud0421
+          name: ""
+          type: namespace
+          rule: ozonru.me
+          enable: true
+        - id: rud0422
+          name: ""
+          type: namespace
+          rule: ozonusercontent.com
+          enable: true
+        - id: rud0423
+          name: ""
+          type: namespace
+          rule: paywb.com
+          enable: true
+        - id: rud0424
+          name: ""
+          type: namespace
+          rule: perekrestok.com
+          enable: true
+        - id: rud0425
+          name: ""
+          type: namespace
+          rule: pixonic.com
+          enable: true
+        - id: rud0426
+          name: ""
+          type: namespace
+          rule: pobeda.page
+          enable: true
+        - id: rud0427
+          name: ""
+          type: namespace
+          rule: polza.ai
+          enable: true
+        - id: rud0428
+          name: ""
+          type: namespace
+          rule: popmechanic.io
+          enable: true
+        - id: rud0429
+          name: ""
+          type: namespace
+          rule: poudobnee.com
+          enable: true
+        - id: rud0430
+          name: ""
+          type: namespace
+          rule: premier.one
+          enable: true
+        - id: rud0431
+          name: ""
+          type: namespace
+          rule: premiumlive.site
+          enable: true
+        - id: rud0432
+          name: ""
+          type: namespace
+          rule: prod-my.games
+          enable: true
+        - id: rud0433
+          name: ""
+          type: namespace
+          rule: prodcontest.com
+          enable: true
+        - id: rud0434
+          name: ""
+          type: namespace
+          rule: promodj.com
+          enable: true
+        - id: rud0435
+          name: ""
+          type: namespace
+          rule: ptsecurity.com
+          enable: true
+        - id: rud0436
+          name: ""
+          type: namespace
+          rule: public.express
+          enable: true
+        - id: rud0437
+          name: ""
+          type: namespace
+          rule: pushgrow.io
+          enable: true
+        - id: rud0438
+          name: ""
+          type: namespace
+          rule: pvubank.com
+          enable: true
+        - id: rud0439
+          name: ""
+          type: namespace
+          rule: pz.help
+          enable: true
+        - id: rud0440
+          name: ""
+          type: namespace
+          rule: rabbitcounter.com
+          enable: true
+        - id: rud0441
+          name: ""
+          type: namespace
+          rule: rabota.by
+          enable: true
+        - id: rud0442
+          name: ""
+          type: namespace
+          rule: randomgodbot.com
+          enable: true
+        - id: rud0443
+          name: ""
+          type: namespace
+          rule: rbsgate.com
+          enable: true
+        - id: rud0444
+          name: ""
+          type: namespace
+          rule: rbsuat.com
+          enable: true
+        - id: rud0445
+          name: ""
+          type: namespace
+          rule: rbth.com
+          enable: true
+        - id: rud0446
+          name: ""
+          type: namespace
+          rule: reaviz.com
+          enable: true
+        - id: rud0447
+          name: ""
+          type: namespace
+          rule: reg.cloud
+          enable: true
+        - id: rud0448
+          name: ""
+          type: namespace
+          rule: reg.com
+          enable: true
+        - id: rud0449
+          name: ""
+          type: namespace
+          rule: reso-med.com
+          enable: true
+        - id: rud0450
+          name: ""
+          type: namespace
+          rule: restream-media.net
+          enable: true
+        - id: rud0451
+          name: ""
+          type: namespace
+          rule: robotext.io
+          enable: true
+        - id: rud0452
+          name: ""
+          type: namespace
+          rule: rocketozon.by
+          enable: true
+        - id: rud0453
+          name: ""
+          type: namespace
+          rule: roistat.com
+          enable: true
+        - id: rud0454
+          name: ""
+          type: namespace
+          rule: romanovs100.com
+          enable: true
+        - id: rud0455
+          name: ""
+          type: namespace
+          rule: rosbank-credit.com
+          enable: true
+        - id: rud0456
+          name: ""
+          type: namespace
+          rule: rossiyasegodnya.com
+          enable: true
+        - id: rud0457
+          name: ""
+          type: namespace
+          rule: rostaxi.org
+          enable: true
+        - id: rud0458
+          name: ""
+          type: namespace
+          rule: rt-school.online
+          enable: true
+        - id: rud0459
+          name: ""
+          type: namespace
+          rule: rt.com
+          enable: true
+        - id: rud0460
+          name: ""
+          type: namespace
+          rule: rt.rs
+          enable: true
+        - id: rud0461
+          name: ""
+          type: namespace
+          rule: rtarabic.com
+          enable: true
+        - id: rud0462
+          name: ""
+          type: namespace
+          rule: rtarabic.net
+          enable: true
+        - id: rud0463
+          name: ""
+          type: namespace
+          rule: rtarabic.org
+          enable: true
+        - id: rud0464
+          name: ""
+          type: namespace
+          rule: rtbrasil.com
+          enable: true
+        - id: rud0465
+          name: ""
+          type: namespace
+          rule: rtbrasil.info
+          enable: true
+        - id: rud0466
+          name: ""
+          type: namespace
+          rule: rtde.agency
+          enable: true
+        - id: rud0467
+          name: ""
+          type: namespace
+          rule: rtde.expert
+          enable: true
+        - id: rud0468
+          name: ""
+          type: namespace
+          rule: rtde.express
+          enable: true
+        - id: rud0469
+          name: ""
+          type: namespace
+          rule: rtde.info
+          enable: true
+        - id: rud0470
+          name: ""
+          type: namespace
+          rule: rtde.life
+          enable: true
+        - id: rud0471
+          name: ""
+          type: namespace
+          rule: rtde.live
+          enable: true
+        - id: rud0472
+          name: ""
+          type: namespace
+          rule: rtde.me
+          enable: true
+        - id: rud0473
+          name: ""
+          type: namespace
+          rule: rtde.media
+          enable: true
+        - id: rud0474
+          name: ""
+          type: namespace
+          rule: rtde.online
+          enable: true
+        - id: rud0475
+          name: ""
+          type: namespace
+          rule: rtde.org
+          enable: true
+        - id: rud0476
+          name: ""
+          type: namespace
+          rule: rtde.press
+          enable: true
+        - id: rud0477
+          name: ""
+          type: namespace
+          rule: rtde.site
+          enable: true
+        - id: rud0478
+          name: ""
+          type: namespace
+          rule: rtde.team
+          enable: true
+        - id: rud0479
+          name: ""
+          type: namespace
+          rule: rtde.tech
+          enable: true
+        - id: rud0480
+          name: ""
+          type: namespace
+          rule: rtde.website
+          enable: true
+        - id: rud0481
+          name: ""
+          type: namespace
+          rule: rtde.world
+          enable: true
+        - id: rud0482
+          name: ""
+          type: namespace
+          rule: rtde.xyz
+          enable: true
+        - id: rud0483
+          name: ""
+          type: namespace
+          rule: rtdefree.info
+          enable: true
+        - id: rud0484
+          name: ""
+          type: namespace
+          rule: rtdefree.me
+          enable: true
+        - id: rud0485
+          name: ""
+          type: namespace
+          rule: rtdefree.online
+          enable: true
+        - id: rud0486
+          name: ""
+          type: namespace
+          rule: rtdefree.tech
+          enable: true
+        - id: rud0487
+          name: ""
+          type: namespace
+          rule: rtdoc.tv
+          enable: true
+        - id: rud0488
+          name: ""
+          type: namespace
+          rule: rtdocumentary.online
+          enable: true
+        - id: rud0489
+          name: ""
+          type: namespace
+          rule: rteam.dev
+          enable: true
+        - id: rud0490
+          name: ""
+          type: namespace
+          rule: rteam.tech
+          enable: true
+        - id: rud0491
+          name: ""
+          type: namespace
+          rule: rtenafrique.tv
+          enable: true
+        - id: rud0492
+          name: ""
+          type: namespace
+          rule: rtenfrancais.tv
+          enable: true
+        - id: rud0493
+          name: ""
+          type: namespace
+          rule: rtenfrance.tv
+          enable: true
+        - id: rud0494
+          name: ""
+          type: namespace
+          rule: rtespanol.com
+          enable: true
+        - id: rud0495
+          name: ""
+          type: namespace
+          rule: rtfrance.tv
+          enable: true
+        - id: rud0496
+          name: ""
+          type: namespace
+          rule: rtnewsde.com
+          enable: true
+        - id: rud0497
+          name: ""
+          type: namespace
+          rule: rtnewsde.online
+          enable: true
+        - id: rud0498
+          name: ""
+          type: namespace
+          rule: rtnewsde.pro
+          enable: true
+        - id: rud0499
+          name: ""
+          type: namespace
+          rule: rtnewsde.site
+          enable: true
+        - id: rud0500
+          name: ""
+          type: namespace
+          rule: rtnewsde.tech
+          enable: true
+        - id: rud0501
+          name: ""
+          type: namespace
+          rule: rtnewsru.com
+          enable: true
+        - id: rud0502
+          name: ""
+          type: namespace
+          rule: rtrunews.com
+          enable: true
+        - id: rud0503
+          name: ""
+          type: namespace
+          rule: rttv.com
+          enable: true
+        - id: rud0504
+          name: ""
+          type: namespace
+          rule: ru
+          enable: true
+        - id: rud0505
+          name: ""
+          type: namespace
+          rule: ru.ccb.com
+          enable: true
+        - id: rud0506
+          name: ""
+          type: namespace
+          rule: ru.com
+          enable: true
+        - id: rud0507
+          name: ""
+          type: namespace
+          rule: ru.net
+          enable: true
+        - id: rud0508
+          name: ""
+          type: namespace
+          rule: rugpt.io
+          enable: true
+        - id: rud0509
+          name: ""
+          type: namespace
+          rule: ruhub.tv
+          enable: true
+        - id: rud0510
+          name: ""
+          type: namespace
+          rule: runewsrt.com
+          enable: true
+        - id: rud0511
+          name: ""
+          type: namespace
+          rule: ruptly.agency
+          enable: true
+        - id: rud0512
+          name: ""
+          type: namespace
+          rule: ruptly.tv
+          enable: true
+        - id: rud0513
+          name: ""
+          type: namespace
+          rule: ruptly.video
+          enable: true
+        - id: rud0514
+          name: ""
+          type: namespace
+          rule: rurtnews.com
+          enable: true
+        - id: rud0515
+          name: ""
+          type: namespace
+          rule: russiabeyond.com
+          enable: true
+        - id: rud0516
+          name: ""
+          type: namespace
+          rule: russiaislove.com
+          enable: true
+        - id: rud0517
+          name: ""
+          type: namespace
+          rule: russiatoday.com
+          enable: true
+        - id: rud0518
+          name: ""
+          type: namespace
+          rule: russiatoday.net
+          enable: true
+        - id: rud0519
+          name: ""
+          type: namespace
+          rule: russiatoday.tv
+          enable: true
+        - id: rud0520
+          name: ""
+          type: namespace
+          rule: russieactuelle.fr
+          enable: true
+        - id: rud0521
+          name: ""
+          type: namespace
+          rule: rustore.team
+          enable: true
+        - id: rud0522
+          name: ""
+          type: namespace
+          rule: rustore.tv
+          enable: true
+        - id: rud0523
+          name: ""
+          type: namespace
+          rule: rutube.sport
+          enable: true
+        - id: rud0524
+          name: ""
+          type: namespace
+          rule: rwbautomation.tech
+          enable: true
+        - id: rud0525
+          name: ""
+          type: namespace
+          rule: saas-support.com
+          enable: true
+        - id: rud0526
+          name: ""
+          type: namespace
+          rule: safeliner.tech
+          enable: true
+        - id: rud0527
+          name: ""
+          type: namespace
+          rule: sage-observability.tech
+          enable: true
+        - id: rud0528
+          name: ""
+          type: namespace
+          rule: sayeasy.eu
+          enable: true
+        - id: rud0529
+          name: ""
+          type: namespace
+          rule: sber-bank.by
+          enable: true
+        - id: rud0530
+          name: ""
+          type: namespace
+          rule: sber.pro
+          enable: true
+        - id: rud0531
+          name: ""
+          type: namespace
+          rule: sberauto.com
+          enable: true
+        - id: rud0532
+          name: ""
+          type: namespace
+          rule: sberbank-tele.com
+          enable: true
+        - id: rud0533
+          name: ""
+          type: namespace
+          rule: sberbank.com
+          enable: true
+        - id: rud0534
+          name: ""
+          type: namespace
+          rule: sbercloud.tech
+          enable: true
+        - id: rud0535
+          name: ""
+          type: namespace
+          rule: seclab.lat
+          enable: true
+        - id: rud0536
+          name: ""
+          type: namespace
+          rule: selcdn.net
+          enable: true
+        - id: rud0537
+          name: ""
+          type: namespace
+          rule: selectel.academy
+          enable: true
+        - id: rud0538
+          name: ""
+          type: namespace
+          rule: selectel.blog
+          enable: true
+        - id: rud0539
+          name: ""
+          type: namespace
+          rule: selectel.com
+          enable: true
+        - id: rud0540
+          name: ""
+          type: namespace
+          rule: selectel.dev
+          enable: true
+        - id: rud0541
+          name: ""
+          type: namespace
+          rule: selectel.info
+          enable: true
+        - id: rud0542
+          name: ""
+          type: namespace
+          rule: selectel.io
+          enable: true
+        - id: rud0543
+          name: ""
+          type: namespace
+          rule: selectel.live
+          enable: true
+        - id: rud0544
+          name: ""
+          type: namespace
+          rule: servercore.com
+          enable: true
+        - id: rud0545
+          name: ""
+          type: namespace
+          rule: servercore.live
+          enable: true
+        - id: rud0546
+          name: ""
+          type: namespace
+          rule: servicepipe.tech
+          enable: true
+        - id: rud0547
+          name: ""
+          type: namespace
+          rule: sfunpay.com
+          enable: true
+        - id: rud0548
+          name: ""
+          type: namespace
+          rule: shedevrum.ai
+          enable: true
+        - id: rud0549
+          name: ""
+          type: namespace
+          rule: shop-rt.com
+          enable: true
+        - id: rud0550
+          name: ""
+          type: namespace
+          rule: sistema-capital.com
+          enable: true
+        - id: rud0551
+          name: ""
+          type: namespace
+          rule: skbx.pro
+          enable: true
+        - id: rud0552
+          name: ""
+          type: namespace
+          rule: skillbox.pro
+          enable: true
+        - id: rud0553
+          name: ""
+          type: namespace
+          rule: sky.pro
+          enable: true
+        - id: rud0554
+          name: ""
+          type: namespace
+          rule: slavicstar.com
+          enable: true
+        - id: rud0555
+          name: ""
+          type: namespace
+          rule: slc.tl
+          enable: true
+        - id: rud0556
+          name: ""
+          type: namespace
+          rule: smailru.net
+          enable: true
+        - id: rud0557
+          name: ""
+          type: namespace
+          rule: smartmed.pro
+          enable: true
+        - id: rud0558
+          name: ""
+          type: namespace
+          rule: smotreshka.tv
+          enable: true
+        - id: rud0559
+          name: ""
+          type: namespace
+          rule: sn-esp.site
+          enable: true
+        - id: rud0560
+          name: ""
+          type: namespace
+          rule: sokolov.io
+          enable: true
+        - id: rud0561
+          name: ""
+          type: namespace
+          rule: sourcecraft.dev
+          enable: true
+        - id: rud0562
+          name: ""
+          type: namespace
+          rule: spasibo.digital
+          enable: true
+        - id: rud0563
+          name: ""
+          type: namespace
+          rule: spasibo.market
+          enable: true
+        - id: rud0564
+          name: ""
+          type: namespace
+          rule: sputnikglobe.com
+          enable: true
+        - id: rud0565
+          name: ""
+          type: namespace
+          rule: sputnikimages.com
+          enable: true
+        - id: rud0566
+          name: ""
+          type: namespace
+          rule: sputnikmediabank.com
+          enable: true
+        - id: rud0567
+          name: ""
+          type: namespace
+          rule: sputniknews.com
+          enable: true
+        - id: rud0568
+          name: ""
+          type: namespace
+          rule: srv-hub.org
+          enable: true
+        - id: rud0569
+          name: ""
+          type: namespace
+          rule: standoff365.com
+          enable: true
+        - id: rud0570
+          name: ""
+          type: namespace
+          rule: static-storage.net
+          enable: true
+        - id: rud0571
+          name: ""
+          type: namespace
+          rule: staticmy.com
+          enable: true
+        - id: rud0572
+          name: ""
+          type: namespace
+          rule: su
+          enable: true
+        - id: rud0573
+          name: ""
+          type: namespace
+          rule: support-uber.com
+          enable: true
+        - id: rud0574
+          name: ""
+          type: namespace
+          rule: swentr.site
+          enable: true
+        - id: rud0575
+          name: ""
+          type: namespace
+          rule: t-bank.by
+          enable: true
+        - id: rud0576
+          name: ""
+          type: namespace
+          rule: t-finance.group
+          enable: true
+        - id: rud0577
+          name: ""
+          type: namespace
+          rule: t-tech.dev
+          enable: true
+        - id: rud0578
+          name: ""
+          type: namespace
+          rule: t-tech.team
+          enable: true
+        - id: rud0579
+          name: ""
+          type: namespace
+          rule: t.finance
+          enable: true
+        - id: rud0580
+          name: ""
+          type: namespace
+          rule: t1.cloud
+          enable: true
+        - id: rud0581
+          name: ""
+          type: namespace
+          rule: tak-pravilno.com
+          enable: true
+        - id: rud0582
+          name: ""
+          type: namespace
+          rule: tamtam.chat
+          enable: true
+        - id: rud0583
+          name: ""
+          type: namespace
+          rule: tarantool.io
+          enable: true
+        - id: rud0584
+          name: ""
+          type: namespace
+          rule: targetads.io
+          enable: true
+        - id: rud0585
+          name: ""
+          type: namespace
+          rule: tatar
+          enable: true
+        - id: rud0586
+          name: ""
+          type: namespace
+          rule: taxiaid.org
+          enable: true
+        - id: rud0587
+          name: ""
+          type: namespace
+          rule: taxiguru.org
+          enable: true
+        - id: rud0588
+          name: ""
+          type: namespace
+          rule: taxitax.org
+          enable: true
+        - id: rud0589
+          name: ""
+          type: namespace
+          rule: taxsee.com
+          enable: true
+        - id: rud0590
+          name: ""
+          type: namespace
+          rule: tbank-online.com
+          enable: true
+        - id: rud0591
+          name: ""
+          type: namespace
+          rule: tdev.by
+          enable: true
+        - id: rud0592
+          name: ""
+          type: namespace
+          rule: tehnodom.com
+          enable: true
+        - id: rud0593
+          name: ""
+          type: namespace
+          rule: telega.info
+          enable: true
+        - id: rud0594
+          name: ""
+          type: namespace
+          rule: telega.me
+          enable: true
+        - id: rud0595
+          name: ""
+          type: namespace
+          rule: tilda.cc
+          enable: true
+        - id: rud0596
+          name: ""
+          type: namespace
+          rule: tilda.ws
+          enable: true
+        - id: rud0597
+          name: ""
+          type: namespace
+          rule: tildaapi.com
+          enable: true
+        - id: rud0598
+          name: ""
+          type: namespace
+          rule: tildacdn.com
+          enable: true
+        - id: rud0599
+          name: ""
+          type: namespace
+          rule: tildacdn.net
+          enable: true
+        - id: rud0600
+          name: ""
+          type: namespace
+          rule: timeweb.cloud
+          enable: true
+        - id: rud0601
+          name: ""
+          type: namespace
+          rule: timeweb.com
+          enable: true
+        - id: rud0602
+          name: ""
+          type: namespace
+          rule: tinkoff-group.com
+          enable: true
+        - id: rud0603
+          name: ""
+          type: namespace
+          rule: tinkoff.ai
+          enable: true
+        - id: rud0604
+          name: ""
+          type: namespace
+          rule: tinkoffmobile.com
+          enable: true
+        - id: rud0605
+          name: ""
+          type: namespace
+          rule: tips.tips
+          enable: true
+        - id: rud0606
+          name: ""
+          type: namespace
+          rule: tochka-tech.com
+          enable: true
+        - id: rud0607
+          name: ""
+          type: namespace
+          rule: tochka.com
+          enable: true
+        - id: rud0608
+          name: ""
+          type: namespace
+          rule: tok.media
+          enable: true
+        - id: rud0609
+          name: ""
+          type: namespace
+          rule: tokenator.top
+          enable: true
+        - id: rud0610
+          name: ""
+          type: namespace
+          rule: trbcdn.net
+          enable: true
+        - id: rud0611
+          name: ""
+          type: namespace
+          rule: turbopages.org
+          enable: true
+        - id: rud0612
+          name: ""
+          type: namespace
+          rule: tvoyodbo.online
+          enable: true
+        - id: rud0613
+          name: ""
+          type: namespace
+          rule: ubs.com
+          enable: true
+        - id: rud0614
+          name: ""
+          type: namespace
+          rule: ucoz.ae
+          enable: true
+        - id: rud0615
+          name: ""
+          type: namespace
+          rule: ucoz.club
+          enable: true
+        - id: rud0616
+          name: ""
+          type: namespace
+          rule: ucoz.co
+          enable: true
+        - id: rud0617
+          name: ""
+          type: namespace
+          rule: ucoz.co.il
+          enable: true
+        - id: rud0618
+          name: ""
+          type: namespace
+          rule: ucoz.co.uk
+          enable: true
+        - id: rud0619
+          name: ""
+          type: namespace
+          rule: ucoz.com
+          enable: true
+        - id: rud0620
+          name: ""
+          type: namespace
+          rule: ucoz.com.br
+          enable: true
+        - id: rud0621
+          name: ""
+          type: namespace
+          rule: ucoz.com.ro
+          enable: true
+        - id: rud0622
+          name: ""
+          type: namespace
+          rule: ucoz.de
+          enable: true
+        - id: rud0623
+          name: ""
+          type: namespace
+          rule: ucoz.es
+          enable: true
+        - id: rud0624
+          name: ""
+          type: namespace
+          rule: ucoz.fr
+          enable: true
+        - id: rud0625
+          name: ""
+          type: namespace
+          rule: ucoz.hu
+          enable: true
+        - id: rud0626
+          name: ""
+          type: namespace
+          rule: ucoz.kz
+          enable: true
+        - id: rud0627
+          name: ""
+          type: namespace
+          rule: ucoz.lv
+          enable: true
+        - id: rud0628
+          name: ""
+          type: namespace
+          rule: ucoz.md
+          enable: true
+        - id: rud0629
+          name: ""
+          type: namespace
+          rule: ucoz.net
+          enable: true
+        - id: rud0630
+          name: ""
+          type: namespace
+          rule: ucoz.org
+          enable: true
+        - id: rud0631
+          name: ""
+          type: namespace
+          rule: ucoz.pl
+          enable: true
+        - id: rud0632
+          name: ""
+          type: namespace
+          rule: ucoz.site
+          enable: true
+        - id: rud0633
+          name: ""
+          type: namespace
+          rule: ucoz.ua
+          enable: true
+        - id: rud0634
+          name: ""
+          type: namespace
+          rule: ucozmail.com
+          enable: true
+        - id: rud0635
+          name: ""
+          type: namespace
+          rule: ucozmedia.com
+          enable: true
+        - id: rud0636
+          name: ""
+          type: namespace
+          rule: ucoztemplates.com
+          enable: true
+        - id: rud0637
+          name: ""
+          type: namespace
+          rule: ukit.ai
+          enable: true
+        - id: rud0638
+          name: ""
+          type: namespace
+          rule: ukit.com
+          enable: true
+        - id: rud0639
+          name: ""
+          type: namespace
+          rule: ukit.group
+          enable: true
+        - id: rud0640
+          name: ""
+          type: namespace
+          rule: ukit.me
+          enable: true
+        - id: rud0641
+          name: ""
+          type: namespace
+          rule: uma.media
+          enable: true
+        - id: rud0642
+          name: ""
+          type: namespace
+          rule: umschool.net
+          enable: true
+        - id: rud0643
+          name: ""
+          type: namespace
+          rule: uni.rest
+          enable: true
+        - id: rud0644
+          name: ""
+          type: namespace
+          rule: unidraw.io
+          enable: true
+        - id: rud0645
+          name: ""
+          type: namespace
+          rule: unirest.tech
+          enable: true
+        - id: rud0646
+          name: ""
+          type: namespace
+          rule: userapi.com
+          enable: true
+        - id: rud0647
+          name: ""
+          type: namespace
+          rule: usocial.pro
+          enable: true
+        - id: rud0648
+          name: ""
+          type: namespace
+          rule: vimu.tv
+          enable: true
+        - id: rud0649
+          name: ""
+          type: namespace
+          rule: viqeo.tv
+          enable: true
+        - id: rud0650
+          name: ""
+          type: namespace
+          rule: viqeotv.com
+          enable: true
+        - id: rud0651
+          name: ""
+          type: namespace
+          rule: vk-apps.com
+          enable: true
+        - id: rud0652
+          name: ""
+          type: namespace
+          rule: vk-cdn.me
+          enable: true
+        - id: rud0653
+          name: ""
+          type: namespace
+          rule: vk-cdn.net
+          enable: true
+        - id: rud0654
+          name: ""
+          type: namespace
+          rule: vk-portal.net
+          enable: true
+        - id: rud0655
+          name: ""
+          type: namespace
+          rule: vk.cc
+          enable: true
+        - id: rud0656
+          name: ""
+          type: namespace
+          rule: vk.com
+          enable: true
+        - id: rud0657
+          name: ""
+          type: namespace
+          rule: vk.company
+          enable: true
+        - id: rud0658
+          name: ""
+          type: namespace
+          rule: vk.design
+          enable: true
+        - id: rud0659
+          name: ""
+          type: namespace
+          rule: vk.kz
+          enable: true
+        - id: rud0660
+          name: ""
+          type: namespace
+          rule: vk.link
+          enable: true
+        - id: rud0661
+          name: ""
+          type: namespace
+          rule: vk.me
+          enable: true
+        - id: rud0662
+          name: ""
+          type: namespace
+          rule: vk.team
+          enable: true
+        - id: rud0663
+          name: ""
+          type: namespace
+          rule: vkcache.com
+          enable: true
+        - id: rud0664
+          name: ""
+          type: namespace
+          rule: vkcdnservice.com
+          enable: true
+        - id: rud0665
+          name: ""
+          type: namespace
+          rule: vkclips.app
+          enable: true
+        - id: rud0666
+          name: ""
+          type: namespace
+          rule: vkcloud-static.kz
+          enable: true
+        - id: rud0667
+          name: ""
+          type: namespace
+          rule: vkcloud.kz
+          enable: true
+        - id: rud0668
+          name: ""
+          type: namespace
+          rule: vkcs.cloud
+          enable: true
+        - id: rud0669
+          name: ""
+          type: namespace
+          rule: vkgo.app
+          enable: true
+        - id: rud0670
+          name: ""
+          type: namespace
+          rule: vklive.app
+          enable: true
+        - id: rud0671
+          name: ""
+          type: namespace
+          rule: vkmessenger.app
+          enable: true
+        - id: rud0672
+          name: ""
+          type: namespace
+          rule: vkmessenger.com
+          enable: true
+        - id: rud0673
+          name: ""
+          type: namespace
+          rule: vkontakte.com
+          enable: true
+        - id: rud0674
+          name: ""
+          type: namespace
+          rule: vkpay.app
+          enable: true
+        - id: rud0675
+          name: ""
+          type: namespace
+          rule: vkpay.com
+          enable: true
+        - id: rud0676
+          name: ""
+          type: namespace
+          rule: vkpay.io
+          enable: true
+        - id: rud0677
+          name: ""
+          type: namespace
+          rule: vkplay.live
+          enable: true
+        - id: rud0678
+          name: ""
+          type: namespace
+          rule: vkuser.net
+          enable: true
+        - id: rud0679
+          name: ""
+          type: namespace
+          rule: vkuseraudio.com
+          enable: true
+        - id: rud0680
+          name: ""
+          type: namespace
+          rule: vkuseraudio.net
+          enable: true
+        - id: rud0681
+          name: ""
+          type: namespace
+          rule: vkuserlive.com
+          enable: true
+        - id: rud0682
+          name: ""
+          type: namespace
+          rule: vkuserlive.net
+          enable: true
+        - id: rud0683
+          name: ""
+          type: namespace
+          rule: vkuservideo.com
+          enable: true
+        - id: rud0684
+          name: ""
+          type: namespace
+          rule: vkuservideo.net
+          enable: true
+        - id: rud0685
+          name: ""
+          type: namespace
+          rule: vkworkspace.kz
+          enable: true
+        - id: rud0686
+          name: ""
+          type: namespace
+          rule: vmailru.net
+          enable: true
+        - id: rud0687
+          name: ""
+          type: namespace
+          rule: volganet.net
+          enable: true
+        - id: rud0688
+          name: ""
+          type: namespace
+          rule: vscale.blog
+          enable: true
+        - id: rud0689
+          name: ""
+          type: namespace
+          rule: vscale.io
+          enable: true
+        - id: rud0690
+          name: ""
+          type: namespace
+          rule: vtb-direct.com
+          enable: true
+        - id: rud0691
+          name: ""
+          type: namespace
+          rule: vtbglobalperspectives.com
+          enable: true
+        - id: rud0692
+          name: ""
+          type: namespace
+          rule: warehouse.domains
+          enable: true
+        - id: rud0693
+          name: ""
+          type: namespace
+          rule: watchingthehawks.com
+          enable: true
+        - id: rud0694
+          name: ""
+          type: namespace
+          rule: wb.am
+          enable: true
+        - id: rud0695
+          name: ""
+          type: namespace
+          rule: wb.kg
+          enable: true
+        - id: rud0696
+          name: ""
+          type: namespace
+          rule: wb.kz
+          enable: true
+        - id: rud0697
+          name: ""
+          type: namespace
+          rule: wbautomation.tech
+          enable: true
+        - id: rud0698
+          name: ""
+          type: namespace
+          rule: wbcontent.net
+          enable: true
+        - id: rud0699
+          name: ""
+          type: namespace
+          rule: wbr.by
+          enable: true
+        - id: rud0700
+          name: ""
+          type: namespace
+          rule: wbstatic.net
+          enable: true
+        - id: rud0701
+          name: ""
+          type: namespace
+          rule: wbwh.tech
+          enable: true
+        - id: rud0702
+          name: ""
+          type: namespace
+          rule: webvisor.com
+          enable: true
+        - id: rud0703
+          name: ""
+          type: namespace
+          rule: webvisor.org
+          enable: true
+        - id: rud0704
+          name: ""
+          type: namespace
+          rule: whitesaas.com
+          enable: true
+        - id: rud0705
+          name: ""
+          type: namespace
+          rule: whoosh.bike
+          enable: true
+        - id: rud0706
+          name: ""
+          type: namespace
+          rule: wibes.com
+          enable: true
+        - id: rud0707
+          name: ""
+          type: namespace
+          rule: wildberries.am
+          enable: true
+        - id: rud0708
+          name: ""
+          type: namespace
+          rule: wildberries.by
+          enable: true
+        - id: rud0709
+          name: ""
+          type: namespace
+          rule: wildberries.co.il
+          enable: true
+        - id: rud0710
+          name: ""
+          type: namespace
+          rule: wildberries.es
+          enable: true
+        - id: rud0711
+          name: ""
+          type: namespace
+          rule: wildberries.eu
+          enable: true
+        - id: rud0712
+          name: ""
+          type: namespace
+          rule: wildberries.ge
+          enable: true
+        - id: rud0713
+          name: ""
+          type: namespace
+          rule: wildberries.kg
+          enable: true
+        - id: rud0714
+          name: ""
+          type: namespace
+          rule: wildberries.kz
+          enable: true
+        - id: rud0715
+          name: ""
+          type: namespace
+          rule: wildberries.lt
+          enable: true
+        - id: rud0716
+          name: ""
+          type: namespace
+          rule: wildberries.tj
+          enable: true
+        - id: rud0717
+          name: ""
+          type: namespace
+          rule: wildberries.tm
+          enable: true
+        - id: rud0718
+          name: ""
+          type: namespace
+          rule: wildberries.uz
+          enable: true
+        - id: rud0719
+          name: ""
+          type: namespace
+          rule: wink.am
+          enable: true
+        - id: rud0720
+          name: ""
+          type: namespace
+          rule: worldcuprussia.com
+          enable: true
+        - id: rud0721
+          name: ""
+          type: namespace
+          rule: x5.ai
+          enable: true
+        - id: rud0722
+          name: ""
+          type: namespace
+          rule: x5.com
+          enable: true
+        - id: rud0723
+          name: ""
+          type: namespace
+          rule: x5.digital
+          enable: true
+        - id: rud0724
+          name: ""
+          type: namespace
+          rule: x5.group
+          enable: true
+        - id: rud0725
+          name: ""
+          type: namespace
+          rule: x5.media
+          enable: true
+        - id: rud0726
+          name: ""
+          type: namespace
+          rule: x5.team
+          enable: true
+        - id: rud0727
+          name: ""
+          type: namespace
+          rule: x5.tech
+          enable: true
+        - id: rud0728
+          name: ""
+          type: namespace
+          rule: x5static.net
+          enable: true
+        - id: rud0729
+          name: ""
+          type: namespace
+          rule: xlnk.ms
+          enable: true
+        - id: rud0730
+          name: ""
+          type: namespace
+          rule: xn-----6kc7adj0c9esa.com
+          enable: true
+        - id: rud0731
+          name: ""
+          type: namespace
+          rule: xn----7sbaba0dc6cdn7cxcj.com
+          enable: true
+        - id: rud0732
+          name: ""
+          type: namespace
+          rule: xn----7sbabae2a0bnvtsfr4loc.com
+          enable: true
+        - id: rud0733
+          name: ""
+          type: namespace
+          rule: xn----7sbbab6bregnh7b8if5b.com
+          enable: true
+        - id: rud0734
+          name: ""
+          type: namespace
+          rule: xn----7sbbamm1bv2bh7i.com
+          enable: true
+        - id: rud0735
+          name: ""
+          type: namespace
+          rule: xn----8sbaroledu6bi7j.com
+          enable: true
+        - id: rud0736
+          name: ""
+          type: namespace
+          rule: xn----8sbeoy5bze.com
+          enable: true
+        - id: rud0737
+          name: ""
+          type: namespace
+          rule: xn--80adxhks
+          enable: true
+        - id: rud0738
+          name: ""
+          type: namespace
+          rule: xn--80aqcf7a6do.com
+          enable: true
+        - id: rud0739
+          name: ""
+          type: namespace
+          rule: xn--80asehdb
+          enable: true
+        - id: rud0740
+          name: ""
+          type: namespace
+          rule: xn--80aswg
+          enable: true
+        - id: rud0741
+          name: ""
+          type: namespace
+          rule: xn--90ab.com
+          enable: true
+        - id: rud0742
+          name: ""
+          type: namespace
+          rule: xn--90aifd0az.shop
+          enable: true
+        - id: rud0743
+          name: ""
+          type: namespace
+          rule: xn--b1aechhj6bof8g5a.site
+          enable: true
+        - id: rud0744
+          name: ""
+          type: namespace
+          rule: xn--c1avg
+          enable: true
+        - id: rud0745
+          name: ""
+          type: namespace
+          rule: xn--d1abkf4ap.fun
+          enable: true
+        - id: rud0746
+          name: ""
+          type: namespace
+          rule: xn--d1acj3b
+          enable: true
+        - id: rud0747
+          name: ""
+          type: namespace
+          rule: xn--e1adjldbbpv.xn--90ais
+          enable: true
+        - id: rud0748
+          name: ""
+          type: namespace
+          rule: xn--h1ao.site
+          enable: true
+        - id: rud0749
+          name: ""
+          type: namespace
+          rule: xn--p1acf
+          enable: true
+        - id: rud0750
+          name: ""
+          type: namespace
+          rule: xn--p1ai
+          enable: true
+        - id: rud0751
+          name: ""
+          type: namespace
+          rule: ya.cc
+          enable: true
+        - id: rud0752
+          name: ""
+          type: namespace
+          rule: yads.tech
+          enable: true
+        - id: rud0753
+          name: ""
+          type: namespace
+          rule: yandex
+          enable: true
+        - id: rud0754
+          name: ""
+          type: namespace
+          rule: yandex-bank.net
+          enable: true
+        - id: rud0755
+          name: ""
+          type: namespace
+          rule: yandex.aero
+          enable: true
+        - id: rud0756
+          name: ""
+          type: namespace
+          rule: yandex.asia
+          enable: true
+        - id: rud0757
+          name: ""
+          type: namespace
+          rule: yandex.az
+          enable: true
+        - id: rud0758
+          name: ""
+          type: namespace
+          rule: yandex.by
+          enable: true
+        - id: rud0759
+          name: ""
+          type: namespace
+          rule: yandex.cloud
+          enable: true
+        - id: rud0760
+          name: ""
+          type: namespace
+          rule: yandex.co.il
+          enable: true
+        - id: rud0761
+          name: ""
+          type: namespace
+          rule: yandex.com
+          enable: true
+        - id: rud0762
+          name: ""
+          type: namespace
+          rule: yandex.com.am
+          enable: true
+        - id: rud0763
+          name: ""
+          type: namespace
+          rule: yandex.com.ge
+          enable: true
+        - id: rud0764
+          name: ""
+          type: namespace
+          rule: yandex.com.tr
+          enable: true
+        - id: rud0765
+          name: ""
+          type: namespace
+          rule: yandex.com.ua
+          enable: true
+        - id: rud0766
+          name: ""
+          type: namespace
+          rule: yandex.de
+          enable: true
+        - id: rud0767
+          name: ""
+          type: namespace
+          rule: yandex.ee
+          enable: true
+        - id: rud0768
+          name: ""
+          type: namespace
+          rule: yandex.eu
+          enable: true
+        - id: rud0769
+          name: ""
+          type: namespace
+          rule: yandex.fi
+          enable: true
+        - id: rud0770
+          name: ""
+          type: namespace
+          rule: yandex.fr
+          enable: true
+        - id: rud0771
+          name: ""
+          type: namespace
+          rule: yandex.it
+          enable: true
+        - id: rud0772
+          name: ""
+          type: namespace
+          rule: yandex.jobs
+          enable: true
+        - id: rud0773
+          name: ""
+          type: namespace
+          rule: yandex.kg
+          enable: true
+        - id: rud0774
+          name: ""
+          type: namespace
+          rule: yandex.kz
+          enable: true
+        - id: rud0775
+          name: ""
+          type: namespace
+          rule: yandex.lt
+          enable: true
+        - id: rud0776
+          name: ""
+          type: namespace
+          rule: yandex.lv
+          enable: true
+        - id: rud0777
+          name: ""
+          type: namespace
+          rule: yandex.md
+          enable: true
+        - id: rud0778
+          name: ""
+          type: namespace
+          rule: yandex.mobi
+          enable: true
+        - id: rud0779
+          name: ""
+          type: namespace
+          rule: yandex.net
+          enable: true
+        - id: rud0780
+          name: ""
+          type: namespace
+          rule: yandex.org
+          enable: true
+        - id: rud0781
+          name: ""
+          type: namespace
+          rule: yandex.pl
+          enable: true
+        - id: rud0782
+          name: ""
+          type: namespace
+          rule: yandex.st
+          enable: true
+        - id: rud0783
+          name: ""
+          type: namespace
+          rule: yandex.sx
+          enable: true
+        - id: rud0784
+          name: ""
+          type: namespace
+          rule: yandex.tj
+          enable: true
+        - id: rud0785
+          name: ""
+          type: namespace
+          rule: yandex.tm
+          enable: true
+        - id: rud0786
+          name: ""
+          type: namespace
+          rule: yandex.tr
+          enable: true
+        - id: rud0787
+          name: ""
+          type: namespace
+          rule: yandex.ua
+          enable: true
+        - id: rud0788
+          name: ""
+          type: namespace
+          rule: yandex.uz
+          enable: true
+        - id: rud0789
+          name: ""
+          type: namespace
+          rule: yandexadexchange.net
+          enable: true
+        - id: rud0790
+          name: ""
+          type: namespace
+          rule: yandexcloud.net
+          enable: true
+        - id: rud0791
+          name: ""
+          type: namespace
+          rule: yandexcom.net
+          enable: true
+        - id: rud0792
+          name: ""
+          type: namespace
+          rule: yandexgo.com
+          enable: true
+        - id: rud0793
+          name: ""
+          type: namespace
+          rule: yandexmetrica.com
+          enable: true
+        - id: rud0794
+          name: ""
+          type: namespace
+          rule: yandexwebcache.net
+          enable: true
+        - id: rud0795
+          name: ""
+          type: namespace
+          rule: yandexwebcache.org
+          enable: true
+        - id: rud0796
+          name: ""
+          type: namespace
+          rule: yango-ads.com
+          enable: true
+        - id: rud0797
+          name: ""
+          type: namespace
+          rule: yango-b2b.com
+          enable: true
+        - id: rud0798
+          name: ""
+          type: namespace
+          rule: yango-team.com
+          enable: true
+        - id: rud0799
+          name: ""
+          type: namespace
+          rule: yango-tech.com
+          enable: true
+        - id: rud0800
+          name: ""
+          type: namespace
+          rule: yango.africa
+          enable: true
+        - id: rud0801
+          name: ""
+          type: namespace
+          rule: yango.ao
+          enable: true
+        - id: rud0802
+          name: ""
+          type: namespace
+          rule: yango.bh
+          enable: true
+        - id: rud0803
+          name: ""
+          type: namespace
+          rule: yango.co.il
+          enable: true
+        - id: rud0804
+          name: ""
+          type: namespace
+          rule: yango.com
+          enable: true
+        - id: rud0805
+          name: ""
+          type: namespace
+          rule: yango.fi
+          enable: true
+        - id: rud0806
+          name: ""
+          type: namespace
+          rule: yango.qa
+          enable: true
+        - id: rud0807
+          name: ""
+          type: namespace
+          rule: yango.taxi
+          enable: true
+        - id: rud0808
+          name: ""
+          type: namespace
+          rule: yango.tech
+          enable: true
+        - id: rud0809
+          name: ""
+          type: namespace
+          rule: yangofellowship.com
+          enable: true
+        - id: rud0810
+          name: ""
+          type: namespace
+          rule: yaplakal.com
+          enable: true
+        - id: rud0811
+          name: ""
+          type: namespace
+          rule: yastat.net
+          enable: true
+        - id: rud0812
+          name: ""
+          type: namespace
+          rule: yastatic.net
+          enable: true
+        - id: rud0813
+          name: ""
+          type: namespace
+          rule: yclients.com
+          enable: true
+        - id: rud0814
+          name: ""
+          type: namespace
+          rule: yndx.net
+          enable: true
+        - id: rud0815
+          name: ""
+          type: namespace
+          rule: youla.io
+          enable: true
+        - id: rud0816
+          name: ""
+          type: namespace
+          rule: yourgood.app
+          enable: true
+        - id: rud0817
+          name: ""
+          type: namespace
+          rule: zvuk-b2b.com
+          enable: true
+        - id: rud0818
+          name: ""
+          type: namespace
+          rule: zvuk.com
+          enable: true
+setPrefix: mn_

@@ -1,0 +1,37 @@
+#!/bin/sh /etc/rc.common
+# meridian-antidpi на OpenWrt (procd). Замена nfqws2 (решение владельца 26.09.2026).
+#
+# start: грузит свою nft-таблицу (очередь 301, bypass), потом движок.
+# stop:  снимает СВОЮ таблицу — трафик идёт как без анти-DPI.
+# reload: SIGHUP движку — перечитать /etc/meridian-antidpi/groups (переключатели
+#         групп в панели), очередь не переоткрывается.
+# Состояние для панели: /var/run/meridian-antidpi.status (ключ=значение).
+
+USE_PROCD=1
+START=52
+STOP=10
+
+BIN=/usr/sbin/meridian-antidpi
+NFT=/etc/meridian-antidpi/antidpi.nft
+QUEUE=301
+
+start_service() {
+	[ -x "$BIN" ] || { echo "нет $BIN"; return 1; }
+	nft -c -f "$NFT" || { echo "ОТКАЗ: $NFT не проходит nft -c"; return 1; }
+	nft -f "$NFT" || { logger -t meridian-antidpi "таблица не загружена"; return 1; }
+	procd_open_instance
+	procd_set_param command "$BIN" -queue "$QUEUE"
+	procd_set_param respawn 3600 5 0
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+stop_service() {
+	nft delete table inet meridian_antidpi 2>/dev/null
+	rm -f /var/run/meridian-antidpi.status
+}
+
+reload_service() {
+	procd_send_signal meridian-antidpi '*' HUP
+}
