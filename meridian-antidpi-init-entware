@@ -1,0 +1,100 @@
+#!/bin/sh
+# meridian-antidpi + независимое правило NFQUEUE 500 (28.09.2026, группы — 29.09.2026).
+#
+# СОБСТВЕННОЕ ИМЯ, не слот nfqws2: раньше жил в файле S51nfqws2, и когда
+# владелец удалил nfqws2 через opkg, пакетный менеджер снёс этот файл вместе
+# с собой. Свой файл opkg не тронет.
+#
+# Группы (youtube/discord/cloudflare/other/social) — в $GROUPS, правит
+# /opt/bin/meridian-antidpi-ctl (договор с панелью как на OpenWrt);
+# reload = SIGHUP, движок перечитывает группы без перезапуска очереди.
+#
+# rules — вернуть правила очереди, если движок запущен. Зовёт крючок
+# /opt/etc/ndm/netfilter.d/60-meridian-antidpi.sh: NDM при пересборке
+# netfilter (переподключение WAN/4G и т.п.) стирает правила в mangle FORWARD —
+# 29.09 на HERO так anti-DPI молча отключился на несколько часов.
+BIN=/opt/bin/meridian-antidpi
+GROUPS=/opt/etc/meridian-antidpi/groups
+STRATEGY=/opt/etc/meridian-antidpi/strategy
+LOG=/opt/var/log/meridian-antidpi.log
+NFQ_MARK="0x1c9/0x1ff"
+NFQ_TCP_PORTS="80,443,1984,2053,2083,2087,2096,5222,8443"
+NFQ_UDP_PORTS="443,590:600,1400,3478:3481,5349,19294:19344"
+
+# МОДУЛИ ЯДРА (05.10.2026): после обновления прошивки Keenetic перестал сам подгружать xt_multiport — файл модуля
+# на месте, но правило с -m multiport не встаёт («No chain/target/match»), и анти-DPI молча не получает трафик
+# (замерено на HERO). Грузим нужное сами: modprobe, а нет его — insmod из /lib/modules.
+zagruzit_moduli() {
+	for _m in xt_multiport xt_mark xt_connbytes xt_NFQUEUE nfnetlink_queue; do
+		grep -q "^$_m " /proc/modules 2>/dev/null && continue
+		modprobe "$_m" 2>/dev/null || insmod "/lib/modules/$(uname -r)/$_m.ko" 2>/dev/null || true
+	done
+}
+
+# ТОЛЬКО ПЕРВЫЕ 12 ПАКЕТОВ СОЕДИНЕНИЯ (06.10.2026, Кот 1, на HERO с 05.10): раньше в очередь шёл ВЕСЬ поток
+# TCP/UDP 443 — на всплеске соединений (YouTube на 1-й минуте) очередь переполнялась, пакеты висели без вердикта.
+# Обход DPI нужен только в начале соединения. Нет модуля connbytes — правило без него (как до 06.10), чтобы
+# анти-DPI не пропал совсем.
+CB="-m connbytes --connbytes 1:12 --connbytes-dir original --connbytes-mode packets"
+r_tcp() { iptables -t mangle "$1" FORWARD -p tcp -m mark ! --mark "$NFQ_MARK" -m multiport --dports "$NFQ_TCP_PORTS" $2 -j NFQUEUE --queue-num 500 --queue-bypass; }
+r_udp() { iptables -t mangle "$1" FORWARD -p udp -m mark ! --mark "$NFQ_MARK" -m multiport --dports "$NFQ_UDP_PORTS" $2 -j NFQUEUE --queue-num 500 --queue-bypass; }
+nashih() { iptables -t mangle -S FORWARD 2>/dev/null | grep -c -- '--queue-num 500' ; }
+
+add_rules() {
+	zagruzit_moduli
+	# ДУБЛИ (06.10): на HERO за сутки правил стало 5 — повторный start/rules и прежний вид правил -C не ловит.
+	# Ровно два наших правила нужного вида — ничего не делаем; иначе снимаем все queue-num 500 и ставим заново.
+	if [ "$(nashih)" = 2 ] && r_tcp -C "$CB" 2>/dev/null && r_udp -C "$CB" 2>/dev/null; then return 0; fi
+	remove_rules
+	if r_tcp -A "$CB" 2>/dev/null; then
+		r_udp -A "$CB" 2>/dev/null || { r_tcp -D "$CB" 2>/dev/null; r_tcp -A ""; r_udp -A ""; }
+	else
+		echo "$(date '+%F %T') ВНИМАНИЕ: модуль connbytes недоступен — очередь получает весь поток" >> "$LOG"
+		r_tcp -A ""; r_udp -A ""
+	fi
+}
+
+remove_rules() {
+	_i=0
+	while [ "$(nashih)" -gt 0 ] && [ "$_i" -lt 30 ]; do
+		_r=$(iptables -t mangle -S FORWARD 2>/dev/null | grep -- '--queue-num 500' | head -1 | sed 's/^-A /-D /')
+		[ -n "$_r" ] || break
+		eval iptables -t mangle $_r 2>/dev/null || break
+		_i=$((_i + 1))
+	done
+}
+
+pids() { pidof meridian-antidpi 2>/dev/null; }
+
+do_start() {
+	if [ -z "$(pids)" ]; then
+		( trap '' HUP; exec "$BIN" -queue 500 -groups "$GROUPS" -strategy "$STRATEGY" ) < /dev/null >> "$LOG" 2>&1 &
+		sleep 1
+	fi
+	add_rules
+}
+
+do_stop() {
+	remove_rules
+	_p=$(pids)
+	[ -n "$_p" ] || return 0
+	kill -TERM $_p 2>/dev/null
+	_i=0
+	while [ -n "$(pids)" ] && [ "$_i" -lt 5 ]; do sleep 1; _i=$((_i + 1)); done
+	_p=$(pids)
+	[ -n "$_p" ] && kill -KILL $_p 2>/dev/null
+	return 0
+}
+
+case "$1" in
+	start) do_start ;;
+	stop) do_stop ;;
+	restart) do_stop; do_start ;;
+	rules) [ -n "$(pids)" ] && add_rules ;;
+	reload)
+		_p=$(pids)
+		[ -n "$_p" ] || { echo "движок не запущен"; exit 1; }
+		kill -HUP $_p
+		;;
+	*) echo "использование: $0 {start|stop|restart|reload|rules}" ;;
+esac

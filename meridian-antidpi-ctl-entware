@@ -1,0 +1,105 @@
+#!/bin/sh
+# meridian-antidpi-ctl для Кинетика (Entware) — тот же договор с панелью, что
+# на OpenWrt (shag12-antidpi/owrt/meridian-antidpi-ctl):
+#
+#   status [--machine]      состояние (key=value при --machine)
+#   on | off                весь анти-DPI (off — только сейчас, автозапуск остаётся)
+#   group <имя> on|off      одна группа: youtube | discord | cloudflare | other | social
+#
+# Коды: 0 — сделано; 1 — отказ («ОТКАЗ: …» одной строкой в stderr); 2 — неверные аргументы.
+#
+# Отличия от OpenWrt: init — /opt/etc/init.d/S51meridian-antidpi (автозапуск =
+# исполняемый файл, enable/disable нет); flock на HERO нет — замок каталогом.
+# Паузы в белом нет и не нужно: правило очереди пропускает пакеты с меткой
+# туннеля 0x1c9, а в белом весь зарубежный трафик идёт в туннель.
+
+INIT=${MERIDIAN_ANTIDPI_INIT:-/opt/etc/init.d/S51meridian-antidpi}
+BIN=${MERIDIAN_ANTIDPI_BIN:-/opt/bin/meridian-antidpi}
+GROUPS=${MERIDIAN_ANTIDPI_GROUPS:-/opt/etc/meridian-antidpi/groups}
+STATUS=${MERIDIAN_ANTIDPI_STATUS:-/var/run/meridian-antidpi.status}
+LOCK=${MERIDIAN_ANTIDPI_LOCK:-/var/run/meridian-antidpi-ctl.lock}
+ALL="youtube discord cloudflare other social"
+
+otkaz() { echo "ОТКАЗ: $*" >&2; exit 1; }
+
+unlock() { rm -f "$LOCK/pid" 2>/dev/null; rmdir "$LOCK" 2>/dev/null; }
+
+with_lock() {
+	_i=0
+	until mkdir "$LOCK" 2>/dev/null; do
+		_p=$(cat "$LOCK/pid" 2>/dev/null)
+		if [ -n "$_p" ] && ! kill -0 "$_p" 2>/dev/null; then
+			unlock
+			continue
+		fi
+		_i=$((_i + 1))
+		[ "$_i" -ge 15 ] && otkaz "занято другой командой (замок $LOCK)"
+		sleep 1
+	done
+	echo $$ > "$LOCK/pid"
+	trap unlock EXIT
+	trap 'exit 130' INT TERM HUP
+}
+
+group_val() { # нет строки/файла = 1
+	_v=$(grep -E "^$1=" "$GROUPS" 2>/dev/null | tail -1 | cut -d= -f2)
+	case "$_v" in 0|off) echo 0 ;; *) echo 1 ;; esac
+}
+
+running() { pidof meridian-antidpi >/dev/null 2>&1; }
+
+cmd_status() {
+	if running; then _r=1; else _r=0; fi
+	if [ -x "$INIT" ]; then _e=1; else _e=0; fi
+	if [ "$1" = "--machine" ]; then
+		echo "installed=$([ -x "$BIN" ] && echo 1 || echo 0)"
+		echo "enabled=$_e"
+		echo "running=$_r"
+		for g in $ALL; do echo "group_$g=$(group_val "$g")"; done
+		[ "$_r" = 1 ] && grep -E '^(paused_white|strategy_[a-z]+|packets|tls_handled|tls_group_off|quic_handled|quic_dropped|udp_handled)=' "$STATUS" 2>/dev/null
+		return 0
+	fi
+	echo "анти-DPI: $([ "$_r" = 1 ] && echo работает || echo остановлен), автозапуск $([ "$_e" = 1 ] && echo вкл || echo выкл)"
+	for g in $ALL; do echo "  $g: $([ "$(group_val "$g")" = 1 ] && echo вкл || echo выкл)"; done
+}
+
+cmd_onoff() {
+	[ -x "$INIT" ] || otkaz "анти-DPI не установлен (нет $INIT)"
+	with_lock
+	if [ "$1" = on ]; then
+		"$INIT" start >/dev/null 2>&1
+		_i=0
+		while ! running; do
+			_i=$((_i + 1)); [ "$_i" -ge 10 ] && otkaz "движок не поднялся за 10 с (/opt/var/log/meridian-antidpi.log)"
+			sleep 1
+		done
+		echo "анти-DPI включён"
+	else
+		"$INIT" stop >/dev/null 2>&1
+		echo "анти-DPI остановлен (автозапуск сохранён — вернётся после перезагрузки)"
+	fi
+}
+
+cmd_group() {
+	case " $ALL " in *" $1 "*) ;; *) echo "неизвестная группа «$1»; можно: $ALL" >&2; exit 2 ;; esac
+	case "$2" in on) _v=1 ;; off) _v=0 ;; *) echo "ждали on или off" >&2; exit 2 ;; esac
+	with_lock
+	mkdir -p "$(dirname "$GROUPS")" || otkaz "нет каталога для $GROUPS"
+	_tmp="$GROUPS.tmp.$$"
+	{
+		echo "# meridian-antidpi: включённость групп (1/0). Правит meridian-antidpi-ctl."
+		for g in $ALL; do
+			if [ "$g" = "$1" ]; then echo "$g=$_v"; else echo "$g=$(group_val "$g")"; fi
+		done
+	} > "$_tmp" || { rm -f "$_tmp"; otkaz "не записать $GROUPS"; }
+	mv -f "$_tmp" "$GROUPS" || { rm -f "$_tmp"; otkaz "не заменить $GROUPS"; }
+	running && { "$INIT" reload >/dev/null 2>&1 || otkaz "группа записана, но движок не перечитал (reload)"; }
+	echo "группа $1: $([ "$_v" = 1 ] && echo вкл || echo выкл)"
+}
+
+case "$1" in
+	status) cmd_status "$2" ;;
+	on|off) [ $# -eq 1 ] || { echo "лишние аргументы" >&2; exit 2; }; cmd_onoff "$1" ;;
+	group) [ $# -eq 3 ] || { echo "использование: $0 group <имя> on|off" >&2; exit 2; }; cmd_group "$2" "$3" ;;
+	*) echo "использование: $0 status [--machine] | on | off | group <$ALL> on|off" >&2; exit 2 ;;
+esac
