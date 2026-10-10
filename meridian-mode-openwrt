@@ -1,0 +1,384 @@
+#!/bin/sh
+# meridian-mode — переключатель чёрный/белый для таблицы inet meridian на
+# OpenWrt. Один источник правды для содержимого mark_prerouting и keep4: и
+# загрузка (meridian-nft -> `meridian-mode boot`), и панель, и ручной вызов
+# зовут ЭТОТ скрипт.
+#
+# КОНТРАКТ (для панели, Кот 2):
+#   meridian-mode black                 — чёрный; снимает окно подтверждения, если было
+#   meridian-mode white --confirm N     — белый на N секунд; без `confirm` за это
+#                                         время сам откатится в чёрный (страховка от
+#                                         самозапирания, как `white on --confirm` на Keenetic)
+#   meridian-mode white                 — белый насовсем, без окна (ручной вызов из консоли)
+#   meridian-mode confirm               — подтвердить белый, снять таймер отката
+#   meridian-mode status --machine      — key=value построчно: mode= confirmed= white_confirm_in=
+#   meridian-mode status                — то же + содержимое наборов/цепочки, для человека
+#   meridian-mode boot                  — для init: сохранённый режим; НЕПОДТВЕРЖДЁННЫЙ
+#                                         белый на загрузке НЕ возвращается, идёт чёрный
+#   meridian-mode keep-refresh          — пересобрать только keep4
+#
+# ПОЧЕМУ БЕЗ A/B-ПАРЫ ЦЕПОЧЕК (в отличие от Keenetic, white_home_apply): там
+# A/B нужна потому, что iptables собирается ПОШАГОВО. `nft -f` подаёт ВЕСЬ файл
+# ОДНОЙ транзакцией: или применено целиком, или не применено ничего. По той же
+# причине отдельный `nft -c` перед `nft -f` не нужен — неудачный `nft -f`
+# ничего не меняет сам (переключение ~вдвое быстрее без второго разбора).
+# keep4 и mark_prerouting собираются в ОДИН файл — одна транзакция, не две.
+set -u
+
+# Пути переопределяются окружением ТОЛЬКО для стенда (ip netns делит файловую
+# систему с хостом — без этого стенд пишет состояние в настоящий /etc/qwdtt).
+STATE=${MERIDIAN_MODE_STATE:-/etc/qwdtt/meridian-mode.state}
+CONFIRM=${MERIDIAN_MODE_CONFIRM:-/etc/qwdtt/meridian-mode.confirm}  # есть = белый НЕ подтверждён; "дедлайн токен"
+WDPID=${MERIDIAN_MODE_WDPID:-/var/run/meridian-mode.watchdog.pid}
+LOCK=${MERIDIAN_MODE_LOCK:-/var/lock/meridian-mode.lock}
+QWDTTCONF=${MERIDIAN_MODE_QWDTTCONF:-/etc/qwdtt/qwdtt.conf}
+# RU напрямую (владелец 27.09.2026): в белом режиме российские адреса идут
+# МИМО туннеля, ВСЕГДА, без переключателя. Адреса — из снимка ru-ranges (сумма
+# зашита, чужой файл не грузим). Доменную часть (meridian_rudns4) наполняет
+# meridian-dns — пока набор объявлен и пуст (правило на него безвредно).
+RURANGES=${MERIDIAN_MODE_RURANGES:-/etc/qwdtt/ru-ranges.txt}
+RU_RANGES_SHA=${MERIDIAN_MODE_RU_SHA:-19782c654e4dc03bfac9392fc1f8cd972afe0d99c3bb22b3b7e23c22d2e81200}
+RUSET=meridian_ru4
+RUCOUNTF=${MERIDIAN_MODE_RUCOUNT:-/var/run/meridian-mode.rucount}
+RUMARK=meridian_ru4_zagruzhen
+# Домены напрямую (в т.ч. RU) — набор политики «напрямую» meridian-dns.
+RUDNSSET=meridian_direct_dns4
+TABLE=meridian
+MARK=0x1c9
+MASK=0x1ff
+SELF=${MERIDIAN_MODE_SELF:-/usr/sbin/meridian-mode}
+[ -x "$SELF" ] || SELF=$0
+
+say() { echo "$*"; }
+loger() { logger -t meridian-mode "$*" 2>/dev/null; }
+now() { date +%s; }
+
+# --- блокировка: ручное переключение и сторож отката не должны гоняться ---
+# Урок Keenetic-версии (1.93): ручной `white` не брал замок ensure, и они
+# шли в iptables одновременно. Здесь замок общий у ВСЕХ глаголов, меняющих
+# таблицу, с самого начала.
+lock_take() {
+	if command -v flock >/dev/null 2>&1; then
+		mkdir -p "$(dirname "$LOCK")" 2>/dev/null
+		exec 9>"$LOCK"
+		# busybox-flock на OpenWrt НЕ знает -w (27.09.2026: `flock -w 15` упал,
+		# boot отказал, цепочка пометки осталась пустой). Ждём сами: -n + предел.
+		_i=0
+		until flock -n 9; do
+			_i=$((_i + 1))
+			[ "$_i" -ge 15 ] && { say "ОТКАЗ: другой вызов meridian-mode держит замок дольше 15 с"; exit 1; }
+			sleep 1
+		done
+	fi
+}
+
+# --- keep4: то, что ОБЯЗАНО остаться напрямую (DIZAYN-BELYJ-REZHIM-OPENWRT.md §0) ---
+keep4_elements() {
+	_peer=$(sed -n 's/^PEER="\{0,1\}\([^":]*\).*/\1/p' "$QWDTTCONF" 2>/dev/null | head -1)
+	[ -n "$_peer" ] && printf '%s,' "$_peer"
+	ip -4 addr show 2>/dev/null | awk '/inet /{printf "%s,", $2}'
+	printf '%s' "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,127.0.0.0/8,169.254.0.0/16,224.0.0.0/4,240.0.0.0/4"
+}
+
+emit_keep4() {
+	echo "table inet $TABLE {"
+	echo "    set meridian_keep4 { type ipv4_addr; flags interval; auto-merge; }"
+	echo "}"
+	echo "flush set inet $TABLE meridian_keep4"
+	echo "add element inet $TABLE meridian_keep4 { $(keep4_elements) }"
+}
+
+# --- RU напрямую: адреса ---
+ru_sha_ok() {
+	command -v sha256sum >/dev/null 2>&1 || return 1
+	_rso=$(sha256sum "$RURANGES" 2>/dev/null | cut -d' ' -f1)
+	[ -n "$_rso" ] && [ "$_rso" = "$RU_RANGES_SHA" ]
+}
+
+# ru_ranges_want — сколько сетей в снимке (строки без # и пустых).
+ru_ranges_want() { grep -v '^#' "$RURANGES" 2>/dev/null | grep -c .; }
+
+# ru_load — залить снимок в набор meridian_ru4. Набор объявлен в meridian.nft
+# (переживает загрузку). flush+add одной транзакцией nft -f: правило белой
+# цепочки на него не рвётся. Возврат: 0 — загружено и сошлось по числу.
+ru_load() {
+	[ -f "$RURANGES" ] || { loger "ru-ranges нет ($RURANGES) — RU-адреса не загружены"; return 1; }
+	ru_sha_ok || { loger "сумма $RURANGES не совпала с зашитой — чужой файл не гружу"; return 1; }
+	_want=$(ru_ranges_want)
+	[ "$_want" -gt 0 ] 2>/dev/null || { loger "ru-ranges пуст"; return 1; }
+	_rtmp=$(mktemp /tmp/meridian-ru.XXXXXX) || return 1
+	{
+		# Отметка «загружено» — в ТОЙ ЖЕ транзакции, в крошечном наборе: status
+		# читает её за мс. Пропадает вместе с таблицей (перезагрузка) — тогда
+		# status считает честно полностью.
+		echo "table inet $TABLE {"
+		echo "    set $RUMARK { type ipv4_addr; }"
+		echo "}"
+		echo "flush set inet $TABLE $RUMARK"
+		echo "flush set inet $TABLE $RUSET"
+		# по 1 add на строку — nft переваривает многотысячные списки; интервалы
+		# (flags interval) в наборе объявлены в meridian.nft.
+		grep -v '^#' "$RURANGES" | grep . | sed "s|^|add element inet $TABLE $RUSET { |; s|\$| }|"
+		echo "add element inet $TABLE $RUMARK { 127.0.0.1 }"
+	} > "$_rtmp"
+	if ! nft -f "$_rtmp" 2>"$_rtmp.err"; then
+		loger "nft отклонил снимок RU: $(head -1 "$_rtmp.err" 2>/dev/null)"
+		rm -f "$_rtmp" "$_rtmp.err"
+		return 1
+	fi
+	rm -f "$_rtmp" "$_rtmp.err"
+	# Для status: число сетей — полным подсчётом ОДИН раз здесь (auto-merge сливает
+	# соседние сети, строк снимка бывает больше, чем элементов). status берёт его,
+	# только если отметка $RUMARK на месте (листинг всех 8 тыс. сетей стоил 0,31 с
+	# на AX3000T, а `nft get element` — 0,22 с: nft всё равно выгружает набор).
+	ru_count_full > "$RUCOUNTF" 2>/dev/null
+	loger "RU-адреса загружены: сетей $_want"
+	return 0
+}
+
+ru_count_full() { nft list set inet "$TABLE" "$RUSET" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | wc -l; }
+# ru_count — число сетей в meridian_ru4. Быстрый путь: запись ru_load + отметка
+# $RUMARK (ставится той же транзакцией). Нет записи или отметки (таблицу
+# пересоздали) — честный полный подсчёт.
+ru_count() {
+	if [ -f "$RUCOUNTF" ]; then
+		read -r _rcn < "$RUCOUNTF" 2>/dev/null
+		case "$_rcn" in ''|*[!0-9]*) : ;; *)
+			if nft list set inet "$TABLE" "$RUMARK" 2>/dev/null | grep -q '127\.0\.0\.1'; then
+				echo "$_rcn"; return 0
+			fi ;;
+		esac
+	fi
+	ru_count_full
+}
+ru_in_chain() { nft list chain inet "$TABLE" mark_prerouting 2>/dev/null | grep -q meridian_white_ru_range; }
+
+emit_chain() {
+	_mode=$1
+	echo "table inet $TABLE {"
+	echo "    chain mark_prerouting { type filter hook prerouting priority mangle; policy accept; }"
+	echo "}"
+	echo "flush chain inet $TABLE mark_prerouting"
+	echo "table inet $TABLE {"
+	echo "    chain mark_prerouting {"
+	echo "        type filter hook prerouting priority mangle; policy accept;"
+	echo "        ct direction reply counter return comment \"meridian_reply\""
+	echo "        ct mark and $MASK == $MARK meta mark set ct mark counter comment \"meridian_restore\""
+	echo "        ip daddr @meridian_dst4 meta mark set mark and 0xfffffe00 or $MARK counter comment \"meridian_mark\""
+	echo "        ip daddr @meridian_dst4 ct mark set mark counter comment \"meridian_save\""
+	if [ "$_mode" = "white" ]; then
+		# Порядок из white_home_rules() Keenetic-версии: резолвер ПЕРВЫМ (в туннель
+		# всегда), reply, keep4, direct4, dns_direct4, затем всё остальное — в туннель.
+		# ВАЖНО: «counter return comment», НЕ «comment ...; return» — `;` nft
+		# считает границей ПРАВИЛА, и return становится отдельным правилом без
+		# условия (27.09.2026 так и было: цепочка обрывалась после keep4 для ЛЮБОГО
+		# пакета, catchall не срабатывал никогда; поймал test-white-sandbox.sh).
+		echo "        iifname \"br-lan\" ip daddr @meridian_resolvers4 meta mark set mark and 0xfffffe00 or $MARK counter comment \"meridian_white_resolver\""
+		echo "        iifname \"br-lan\" ip daddr @meridian_resolvers4 ct mark set mark counter return comment \"meridian_white_resolver_save\""
+		echo "        iifname \"br-lan\" ct direction reply counter return comment \"meridian_white_reply\""
+		echo "        iifname \"br-lan\" ip daddr @meridian_keep4 counter return comment \"meridian_white_keep_skip\""
+		echo "        iifname \"br-lan\" ip daddr @meridian_direct4 counter return comment \"meridian_white_direct_skip\""
+		# Напрямую по домену: meridian_direct_dns4 наполняет meridian-dns (политика
+		# «напрямую», ТУДА же грузим RU-домены). Прежнее имя meridian_dns_direct4
+		# было опечаткой замысла — тот набор не наполнял никто (пустой).
+		echo "        iifname \"br-lan\" ip daddr @$RUDNSSET counter return comment \"meridian_white_dns_direct_skip\""
+		# RU напрямую по АДРЕСУ (ВСЕГДА в белом): российские диапазоны — мимо туннеля.
+		echo "        iifname \"br-lan\" ip daddr @$RUSET counter return comment \"meridian_white_ru_range\""
+		echo "        iifname \"br-lan\" meta mark set mark and 0xfffffe00 or $MARK counter comment \"meridian_white_catchall\""
+		echo "        iifname \"br-lan\" ct mark set mark counter comment \"meridian_white_catchall_save\""
+	fi
+	echo "    }"
+	echo "}"
+}
+
+apply_file() {
+	if ! nft -f "$1" 2>"$1.err"; then
+		say "ОТКАЗ: nft отклонил сборку — таблица НЕ тронута (транзакция целиком):"
+		sed 's/^/    /' "$1.err"
+		loger "nft -f отклонил сборку, ничего не применено"
+		rm -f "$1.err"
+		return 1
+	fi
+	rm -f "$1.err"
+	return 0
+}
+
+watchdog_stop() {
+	if [ -f "$WDPID" ]; then
+		_p=$(cat "$WDPID" 2>/dev/null)
+		[ -n "$_p" ] && kill "$_p" 2>/dev/null
+		rm -f "$WDPID"
+	fi
+}
+
+# do_switch <mode> — собственно применение, БЕЗ замка (замок берёт вызывающий)
+do_switch() {
+	_mode=$1
+	_tmp=$(mktemp /tmp/meridian-mode.XXXXXX) || { say "ОТКАЗ: mktemp"; return 1; }
+	{ emit_keep4; emit_chain "$_mode"; } > "$_tmp"
+	if ! apply_file "$_tmp"; then rm -f "$_tmp"; return 1; fi
+	rm -f "$_tmp"
+
+	# Сверка СОДЕРЖИМЫМ, не кодом возврата.
+	_want="meridian_mark"
+	[ "$_mode" = "white" ] && _want="meridian_white_catchall"
+	if ! nft list chain inet "$TABLE" mark_prerouting 2>/dev/null | grep -q "$_want"; then
+		say "ОТКАЗ: применили, но правила $_want в цепочке не вижу"
+		loger "сверка после переключения в $_mode не прошла"
+		return 1
+	fi
+	echo "$_mode" > "$STATE"
+	return 0
+}
+
+cmd_black() {
+	lock_take
+	# Откат ИЗ сторожа: сторож — наш родитель, убивать его отсюда незачем (он
+	# и так завершается), только убрать pid-файл.
+	if [ "${1:-}" = "--auto-rollback" ]; then rm -f "$WDPID"; else watchdog_stop; fi
+	rm -f "$CONFIRM"
+	do_switch black || exit 1
+	say "режим переключён: black"
+	loger "режим переключён: black${1:+ ($1)}"
+}
+
+cmd_white() {
+	_n=""
+	if [ "${1:-}" = "--confirm" ]; then
+		_n=${2:-}
+		case "$_n" in ''|*[!0-9]*) say "ОТКАЗ: --confirm ждёт число секунд"; exit 2 ;; esac
+		[ "$_n" -ge 10 ] || { say "ОТКАЗ: окно подтверждения меньше 10 с — не успеть нажать"; exit 2; }
+	fi
+	lock_take
+	watchdog_stop
+	do_switch white || exit 1
+	if [ -n "$_n" ]; then
+		_tok="$(now)-$$"
+		echo "$(( $(now) + _n )) $_tok" > "$CONFIRM"
+		# Сторож откатывает, ТОЛЬКО если в файле всё ещё ЕГО токен — повторное
+		# включение/подтверждение/чёрный за это время его обезвреживают.
+		# `exec 9>&-` ПЕРВЫМ: иначе сторож наследует дескриптор замка от этого
+		# вызова и держит замок весь свой сон — собственный откат и любой другой
+		# вызов (boot, панель) упираются в замок (стенд 27.09, шаги 9 и 11).
+		( exec 9>&-
+		  trap '' HUP
+		  sleep "$_n"
+		  echo "сторож: проснулся, токен ждём $_tok, в файле: $(cat "$CONFIRM" 2>/dev/null)"
+		  if [ -f "$CONFIRM" ] && [ "$(cut -d' ' -f2 "$CONFIRM" 2>/dev/null)" = "$_tok" ]; then
+			  echo "сторож: не подтверждено — откатываю"
+			  "$SELF" black --auto-rollback
+			  echo "сторож: откат вернул $?"
+		  fi
+		) </dev/null >>"${MERIDIAN_MODE_WDLOG:-/dev/null}" 2>&1 &
+		echo $! > "$WDPID"
+		say "режим переключён: white (НЕ подтверждён: откат в black через $_n с, если не будет confirm)"
+		loger "white на $_n с, ждём confirm"
+	else
+		rm -f "$CONFIRM"
+		say "режим переключён: white"
+		loger "white без окна подтверждения"
+	fi
+}
+
+cmd_confirm() {
+	lock_take
+	_cur=$(cat "$STATE" 2>/dev/null)
+	if [ "$_cur" != "white" ]; then
+		say "ОТКАЗ: подтверждать нечего — текущий режим ${_cur:-black}"
+		exit 1
+	fi
+	if [ ! -f "$CONFIRM" ]; then
+		say "уже подтверждён"
+		return 0
+	fi
+	rm -f "$CONFIRM"
+	watchdog_stop
+	say "белый режим подтверждён, автооткат снят"
+	loger "white подтверждён"
+}
+
+cmd_boot() {
+	lock_take
+	_cur=$(cat "$STATE" 2>/dev/null)
+	[ -n "$_cur" ] || _cur=black
+	if [ "$_cur" = "white" ] && [ -f "$CONFIRM" ]; then
+		# Неподтверждённый опытный слой не имеет права вернуться сам (тот же
+		# принцип, что у white-test на Keenetic).
+		loger "на загрузке: белый был НЕ подтверждён — поднимаю чёрный"
+		rm -f "$CONFIRM"
+		_cur=black
+	fi
+	# RU-адреса грузим на загрузке (самолечение: снимок на месте — набор поднят
+	# при каждом рестарте службы; см. договор с установщиком). Отказ загрузки НЕ
+	# валит режим: правило белой цепочки на пустой набор безвредно.
+	ru_load || loger "boot: RU-адреса не загружены (см. выше) — белый режим встаёт без них"
+	do_switch "$_cur" || exit 1
+	say "режим при загрузке: $_cur"
+}
+
+cmd_ru_load() {
+	lock_take
+	if ru_load; then
+		say "RU-адреса загружены: сетей $(ru_count)"
+	else
+		say "ОТКАЗ: RU-адреса не загружены (нет снимка/сумма/пусто — см. logread)"
+		exit 1
+	fi
+}
+
+cmd_keep_refresh() {
+	lock_take
+	_tmp=$(mktemp /tmp/meridian-mode.XXXXXX) || { say "ОТКАЗ: mktemp"; return 1; }
+	emit_keep4 > "$_tmp"
+	apply_file "$_tmp" || { rm -f "$_tmp"; exit 1; }
+	rm -f "$_tmp"
+	say "keep4 пересобран"
+}
+
+cmd_status() {
+	_cur=$(cat "$STATE" 2>/dev/null)
+	[ -n "$_cur" ] || _cur=black
+	_conf=yes; _in=""
+	if [ "$_cur" = "white" ] && [ -f "$CONFIRM" ]; then
+		_conf=no
+		_dl=$(cut -d' ' -f1 "$CONFIRM" 2>/dev/null)
+		case "$_dl" in ''|*[!0-9]*) _in="" ;; *) _in=$(( _dl - $(now) )); [ "$_in" -lt 0 ] && _in=0 ;; esac
+	fi
+	echo "mode=$_cur"
+	echo "confirmed=$_conf"
+	echo "white_confirm_in=$_in"
+	# RU напрямую — всегда (без переключателя). active=yes только когда набор
+	# адресов загружен И его правило стоит в белой цепочке (значит режим white).
+	echo "ru_direct=always"
+	_rc=$(ru_count)
+	if [ "$_cur" = "white" ] && ru_in_chain && [ "${_rc:-0}" -gt 0 ]; then
+		echo "ru_direct_active=yes"
+		echo "ru_direct_pochemu=действует в белом режиме: российские адреса идут мимо туннеля"
+	else
+		echo "ru_direct_active=no"
+		if [ "$_cur" != "white" ]; then
+			echo "ru_direct_pochemu=режим $_cur: действует только в белом"
+		elif [ "${_rc:-0}" -gt 0 ]; then
+			echo "ru_direct_pochemu=адреса загружены ($_rc), но правила нет в цепочке — пересобрать: meridian-nft restart"
+		else
+			echo "ru_direct_pochemu=снимок RU-адресов не загружен (нет ru-ranges.txt или сумма не та)"
+		fi
+	fi
+	echo "ru_ranges_count=$_rc"
+	[ "${1:-}" = "--machine" ] && return 0
+	echo "--- meridian_keep4 ---"
+	nft list set inet "$TABLE" meridian_keep4 2>&1
+	echo "--- mark_prerouting ---"
+	nft list chain inet "$TABLE" mark_prerouting 2>&1
+}
+
+case "${1:-}" in
+	black) shift; cmd_black "${1:-}" ;;
+	white) shift; cmd_white "$@" ;;
+	confirm) cmd_confirm ;;
+	boot) cmd_boot ;;
+	keep-refresh) cmd_keep_refresh ;;
+	ru-load) cmd_ru_load ;;
+	status) shift; cmd_status "${1:-}" ;;
+	*) echo "использование: $0 {black|white [--confirm N]|confirm|status [--machine]|boot|keep-refresh|ru-load}"; exit 2 ;;
+esac

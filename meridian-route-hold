@@ -1,0 +1,125 @@
+#!/bin/sh
+# meridian-route-hold — цикл, который держит правило политики и таблицу 129.
+# Запускается procd-скриптом /etc/init.d/meridian-route-min, сам не демонизуется:
+# procd держит его живым и перезапускает.
+
+MARK=0x1c9
+MASK=0x1ff
+TABLE=129
+PREF=1000
+IFACE="${MERIDIAN_IFACE:-meridian}"
+MET_TUN=100
+MET_HOLD=200
+PAUZA="${MERIDIAN_HOLD_SLEEP:-10}"
+
+# ip-full — ОБЯЗАТЕЛЬНАЯ ЗАВИСИМОСТЬ, а не пожелание. Замер 19.08.2026:
+# штатный BusyBox-ip отвечает «ip: invalid argument 'blackhole' to 'ip'», а
+# `ip route get … mark` — «need at least destination address». То есть без
+# ip-full удержание построить НЕЧЕМ, и выясняется это не «где-то в процессе».
+#
+# Проверяем ВОЗМОЖНОСТЬ, а не наличие пакета: пробуем поставить пол в пустую
+# таблицу и тут же снять. Проба обязана РЕШАТЬ (правило 42), а не гадать по
+# именам.
+# ПОЛ СТАВИТСЯ ЧЕРЕЗ nft, И ЭТО ОСНОВНОЙ ПУТЬ, А НЕ ЗАПАСНОЙ.
+#
+# 11.09.2026, OpenWrt 24.10.5 / filogic: полного ip в фиде нет вовсе —
+# `opkg install ip-full` отвечает «Unknown package», `opkg list` по iproute2
+# пуст. Прежняя редакция при отсутствии blackhole выходила с кодом 1, и
+# снаружи это выглядело как «таблица 129 пуста»: правило политики без
+# назначения, то есть УТЕЧКА помеченного трафика в обычный канал.
+#
+# nft на роутере есть всегда — им же мы ставим метку. Значит пол, не зависящий
+# ни от одного пакета, строится именно им: помеченное, уходящее МИМО туннеля,
+# отбрасывается. Это работает и когда туннель не поднят, и когда ip rule не
+# умеет fwmark вовсе.
+#
+# Маршрутный пол (blackhole/prohibit/unreachable) остаётся как ДОБАВКА там, где
+# он есть: ядро отбрасывает раньше и дешевле. Но гарантию даёт nft.
+postavit_nft_pol() {
+    nft add chain inet meridian pol_vyhod \
+        '{ type filter hook output priority mangle + 5 ; policy accept ; }' 2>/dev/null
+    nft add chain inet meridian pol_vpered \
+        '{ type filter hook forward priority mangle + 5 ; policy accept ; }' 2>/dev/null
+    # Правило ставим ТОЛЬКО если его ещё нет: цепочка переживает перезапуск
+    # hold, и без проверки мы копили бы одинаковые правила каждые 10 секунд.
+    for CEP in pol_vyhod pol_vpered; do
+        if nft list chain inet meridian "$CEP" 2>/dev/null | grep -q 'meridian_pol'; then
+            continue
+        fi
+        nft add rule inet meridian "$CEP" \
+            meta mark and "$MASK" == "$MARK" oifname != "$IFACE" \
+            drop comment '"meridian_pol"' 2>/dev/null
+    done
+    nft list chain inet meridian pol_vyhod 2>/dev/null | grep -qc 'meridian_pol'
+}
+
+if postavit_nft_pol; then
+    logger -t meridian-route-hold "пол: nft-drop в inet meridian (помеченное мимо $IFACE отбрасывается) — зависимостей нет"
+    NFT_POL=1
+else
+    logger -t meridian-route-hold "ВНИМАНИЕ: nft-пол не поставить — остаётся только маршрутный, если ip его умеет"
+    NFT_POL=0
+fi
+
+# МАРШРУТНЫЙ ПОЛ — ДОБАВКОЙ, и его тип выбирается пробой.
+POL_TIP=""
+for T in blackhole prohibit unreachable; do
+    if ip route replace "$T" default table 254999 metric 200 2>/dev/null; then
+        POL_TIP="$T"
+        break
+    fi
+done
+ip route flush table 254999 2>/dev/null
+if [ -n "$POL_TIP" ]; then
+    logger -t meridian-route-hold "маршрутный пол: $POL_TIP (проба прошла)"
+else
+    logger -t meridian-route-hold "маршрутного пола не будет: ip не умеет ни blackhole, ни prohibit, ни unreachable"
+fi
+
+# УМЕЕТ ЛИ ip ПРАВИЛА ПО МЕТКЕ. До 11.09.2026 это было НЕИЗВЕСТНО: hold
+# отказывался раньше, чем доходил до этого шага, и мы не знали, работает ли
+# сама политика маршрутизации на busybox-ip. Проверяем пробой на заведомо
+# свободном pref и убираем за собой.
+PROBPREF=31999
+ip rule add fwmark "${MARK}/${MASK}" lookup 254998 pref "$PROBPREF" 2>/dev/null
+if ip rule show 2>/dev/null | grep -q "^${PROBPREF}:"; then
+    IP_RULE=1
+    logger -t meridian-route-hold "ip умеет правила по метке — политика маршрутизации будет"
+else
+    IP_RULE=0
+    logger -t meridian-route-hold "ВНИМАНИЕ: ip НЕ умеет правила по метке. Туннель работать не будет, но помеченное и не утечёт: держит nft-пол"
+fi
+ip rule del pref "$PROBPREF" 2>/dev/null
+
+if [ "$NFT_POL" = "0" ] && [ -z "$POL_TIP" ]; then
+    logger -t meridian-route-hold "ОТКАЗ: пола нет ни одного. Правило политики НЕ ставлю — без пола это утечка."
+    echo "ОТКАЗ: пол не поставить ни nft, ни маршрутом." >&2
+    exit 1
+fi
+
+logger -t meridian-route-hold "старт: правило $PREF, таблица $TABLE, интерфейс $IFACE"
+
+while :; do
+    if [ "$IP_RULE" = "0" ]; then
+        :
+    elif ip rule show 2>/dev/null | grep -q "^${PREF}:"; then
+        :
+    else
+        ip rule add fwmark "${MARK}/${MASK}" lookup "$TABLE" pref "$PREF" 2>/dev/null
+        logger -t meridian-route-hold "поставлено правило политики pref $PREF"
+    fi
+    # ПОЛ СТАВИТСЯ ВСЕГДА И ПЕРВЫМ. Пока он есть, правило политики не может
+    # оказаться без назначения; пустая таблица при живом правиле — это утечка
+    # помеченного трафика мимо туннеля.
+    # Пол ставится тем типом, который прошёл пробу. При nft-drop маршрутного
+    # пола нет вовсе — его роль играет правило, поставленное один раз выше.
+    if [ -n "$POL_TIP" ]; then
+        ip route replace "$POL_TIP" default table "$TABLE" metric "$MET_HOLD" 2>/dev/null
+    fi
+    if ip link show "$IFACE" >/dev/null 2>&1; then
+        # ЗАМЕНА, А НЕ «СНЯТЬ И ПОСТАВИТЬ»: replace атомарен, состояния
+        # «правило есть, назначения нет» не существует ни в одно мгновение.
+        ip route replace default dev "$IFACE" table "$TABLE" metric "$MET_TUN" 2>/dev/null
+    fi
+    sleep "$PAUZA"
+done
