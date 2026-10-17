@@ -1,0 +1,8 @@
+#!/bin/sh
+# Ставится вместе с meridian-antidpi. NDM зовёт этот скрипт после каждой
+# пересборки netfilter и при этом стирает наши правила очереди 500 в mangle
+# FORWARD. Возвращаем их, если движок запущен (остановлен — правил и не надо).
+# По таблице не фильтруем, как крючок meridian-route: add_rules — это -C и выход.
+[ "$type" = "ip6tables" ] && exit 0
+[ -x /opt/etc/init.d/S51meridian-antidpi ] || exit 0
+exec /opt/etc/init.d/S51meridian-antidpi rules
