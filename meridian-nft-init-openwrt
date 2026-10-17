@@ -1,0 +1,55 @@
+#!/bin/sh /etc/rc.common
+# meridian-nft — грузит НАШИ наборы на загрузке, затем зовёт meridian-mode
+# собрать mark_prerouting (чёрный по умолчанию, или сохранённый режим, если
+# он есть — см. meridian-mode.state).
+#
+# 27.09.2026: раньше mark_prerouting собирался ЗДЕСЬ ЖЕ, статичным текстом
+# внутри meridian.nft. Теперь это отдельно (meridian-mode) — чтобы загрузка
+# при старте и ручное переключение режима не держали две расходящиеся копии
+# одной и той же сборки правил.
+#
+# START=94 — ДО клиента (95) и держателя маршрута (96), но ПОСЛЕ firewall (19).
+
+USE_PROCD=1
+START=94
+STOP=11
+
+TABLA=/etc/qwdtt/meridian.nft
+MODE_STATE=/etc/qwdtt/meridian-mode.state
+
+start_service() {
+    [ -f "$TABLA" ] || { echo "нет $TABLA"; return 1; }
+    if ! nft -c -f "$TABLA"; then
+        echo "ОТКАЗ: $TABLA не проходит проверку nft -c, не гружу"
+        return 1
+    fi
+    nft -f "$TABLA"
+    RC=$?
+    if [ "$RC" != "0" ]; then
+        echo "ОТКАЗ: nft -f вернул $RC"
+        logger -t meridian-nft "таблица не загружена, nft -f код $RC"
+        return 1
+    fi
+    N=$(nft list table inet meridian 2>/dev/null | grep -c 'meridian_')
+    if [ "$N" = "0" ]; then
+        echo "ОТКАЗ: таблица загружена, а наших наборов/цепочек в ней нет"
+        logger -t meridian-nft "наборов/цепочек нет после загрузки"
+        return 1
+    fi
+    logger -t meridian-nft "наборы/цепочки загружены, записей meridian_ $N"
+
+    # `boot`, а не «сохранённый режим как есть»: неподтверждённый белый (окно
+    # --confirm не закрыли до перезагрузки) на загрузке НЕ возвращается.
+    /usr/sbin/meridian-mode boot
+    logger -t meridian-nft "mark_prerouting собран: $(cat "$MODE_STATE" 2>/dev/null || echo black)"
+}
+
+stop_service() {
+    # НЕ `delete table`: в этой же таблице живут цепочки запрета утечки
+    # pol_vyhod/pol_vpered, их ставит meridian-route-hold ОДИН раз при своём
+    # старте. 27.09.2026 перезапуск этой службы снёс их, и при упавшем туннеле
+    # помеченный трафик мог уйти мимо. Снимаем только своё — пометку.
+    # Наборы не трогаем (см. meridian.nft).
+    nft flush chain inet meridian mark_prerouting 2>/dev/null
+    logger -t meridian-nft "пометка снята (наборы и запрет утечки не тронуты)"
+}

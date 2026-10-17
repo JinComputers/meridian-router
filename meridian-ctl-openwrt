@@ -1,0 +1,771 @@
+#!/bin/sh
+# meridian-ctl — управление клиентом Meridian на OpenWrt (BusyBox ash, procd).
+#
+# Зачем отдельный файл. На OpenWrt нет qwdtt-ctl (он написан под Entware и Keenetic), а в командах для клиентов не должно
+# быть ни старых внутренних имён, ни путей к настройкам. Владелец 17.10.2026: «делай сразу и размораживай переименование».
+# Старые команды и пути остаются работать: /etc/init.d/qwdtt, /etc/qwdtt, /usr/sbin/qwdtt, logread -e qwdtt.
+#
+# Ключ клиента не печатается нигде: ни status, ни key-check, ни сообщения об ошибках (даже когда ключ вставили не туда).
+# Пути переопределяются переменными только для прогонов на поддельном дереве.
+
+CONF="${QWDTT_CONF:-/etc/qwdtt/qwdtt.conf}"
+BIN="${QWDTT_BIN:-/usr/sbin/qwdtt}"
+INITD="${QWDTT_INITD:-/etc/init.d/qwdtt}"
+WEB_INITD="${QWDTT_WEB_INITD:-/etc/init.d/qwdtt-web}"
+CONF_DIR=$(dirname "$CONF")
+DEADFILE="${QWDTT_DEADFILE:-$CONF_DIR/vk_hash_dead.json}"
+PATHFILE="${QWDTT_PATHFILE:-/var/run/qwdtt-path.json}"
+SYSNET="${QWDTT_SYSNET:-/sys/class/net}"
+GW="${QWDTT_GW:-10.77.77.1}"
+KEYURL="${MERIDIAN_KEYCHECK_URL:-https://cdn.jincomputers.win/v1/key}"
+RUNTMP="${QWDTT_RUNTMP:-/tmp/meridian-run}"
+# Источники доустановки: RU-зеркало первым (под белыми списками живо оно), затем GitHub, затем сервер.
+REPAIR_BASES="${QWDTT_REPAIR_BASES:-http://45.10.247.23/bin https://raw.githubusercontent.com/JinComputers/meridian-router/openwrt http://138.124.78.252:8080/bin}"
+
+usage() {
+	cat <<'EOF'
+meridian-ctl — управление клиентом Meridian
+
+  meridian-ctl status                 состояние: служба, туннель, путь, версия, тариф, живые ссылки
+  meridian-ctl start | stop | restart запустить, остановить, перезапустить клиента
+  meridian-ctl log [N]                последние N строк журнала клиента (по умолчанию 60)
+  meridian-ctl version                версия клиента
+  meridian-ctl dion show              комнаты DION
+  meridian-ctl dion set <ссылки>      заменить список комнат (до 3, ссылка https://dion.vc/event/… или код)
+  meridian-ctl dion clear             убрать комнаты DION
+  meridian-ctl hashes count           сколько ссылок на звонки VK задано и сколько живых
+  meridian-ctl hashes set <ссылки>    заменить список ссылок (до 5)
+  meridian-ctl hashes clear           убрать все ссылки
+  meridian-ctl key-check              тариф и срок вашего ключа (сам ключ не показывается)
+  meridian-ctl key set                заменить ключ: ввод скрыт и в историю команд не попадает (лучше всего так)
+  meridian-ctl key set <ключ>         то же, ключ в команде (виден в истории и списке процессов)
+  meridian-ctl dns-confdir            подготовить постоянный каталог настроек dnsmasq (нужен для списка доменов)
+  meridian-ctl transport [значение]   как клиент ищет путь до шлюза: auto (по умолчанию) | direct | tcp | relay; без значения — текущее
+  meridian-ctl repair [--list]        сверить установленное с раздачей и докачать недостающее
+EOF
+}
+
+# vid — текст для людей: прежние внутренние имена → meridian. Константы протокола WDTT-WRAP-* не трогаются; схема wdtt:// с 17.10.2026 — обычное старое слово и становится meridian://.
+vid() { sed -e 's/WDTT-WRAP/@@WW@@/g; s/qwdtt/meridian/g; s/QWDTT/MERIDIAN/g; s/Qwdtt/Meridian/g; s/wdtt/meridian/g; s/WDTT/MERIDIAN/g; s/@@WW@@/WDTT-WRAP/g'; }
+
+# lc — подключить файл настроек (он в синтаксисе оболочки, его так же читает запускатель). 1 — файла нет.
+lc() {
+	if [ ! -r "$CONF" ]; then
+		echo "Файл настроек клиента не найден — установка не завершена. Запустите установку ещё раз той же командой." >&2
+		return 1
+	fi
+	. "$CONF" 2>/dev/null
+	return 0
+}
+
+# set_conf ИМЯ ЗНАЧЕНИЕ — правка одного поля. Без sed -i (его нет в части сборок BusyBox): временный файл рядом и mv.
+# Права 0600 ставим на временный файл ДО записи: в файле лежит ключ.
+set_conf() {
+	if grep -q "^$1=" "$CONF" 2>/dev/null; then
+		_sc_tmp="$CONF.tmp.$$"
+		: > "$_sc_tmp" 2>/dev/null
+		chmod 600 "$_sc_tmp" 2>/dev/null
+		if sed "s|^$1=.*|$1=\"$2\"|" "$CONF" > "$_sc_tmp" 2>/dev/null && [ -s "$_sc_tmp" ]; then
+			mv -f "$_sc_tmp" "$CONF"
+			chmod 600 "$CONF" 2>/dev/null
+		else
+			rm -f "$_sc_tmp"
+			echo "Не удалось изменить настройку «$1»." >&2
+			return 1
+		fi
+	else
+		echo "$1=\"$2\"" >> "$CONF"
+		chmod 600 "$CONF" 2>/dev/null
+	fi
+	return 0
+}
+
+# ---------- состояние ----------
+
+# klient_pid — PID процесса клиента: в командной строке есть путь к его программе отдельным словом.
+klient_pid() {
+	for _p in /proc/[0-9]*; do
+		[ -r "$_p/cmdline" ] || continue
+		_c=$(tr '\0' ' ' < "$_p/cmdline" 2>/dev/null) || continue
+		case " $_c" in
+			*" $BIN "*) echo "${_p#/proc/}"; return 0 ;;
+		esac
+	done
+	return 1
+}
+
+# tunel_zhiv — интерфейс туннеля есть и шлюз внутри него отвечает.
+tunel_zhiv() {
+	_tn="${RAW_TUN:-meridian}"
+	[ -d "$SYSNET/$_tn" ] || return 1
+	ping -c 1 -W 2 "$GW" >/dev/null 2>&1
+}
+
+pokazat_tunel() {
+	_tn="${RAW_TUN:-meridian}"
+	if [ ! -d "$SYSNET/$_tn" ]; then
+		echo "Туннель: интерфейса «$_tn» нет (клиент ещё не соединился)"
+	elif ping -c 1 -W 2 "$GW" >/dev/null 2>&1; then
+		echo "Туннель: работает (шлюз $GW отвечает)"
+	else
+		echo "Туннель: интерфейс есть, но шлюз не отвечает"
+	fi
+}
+
+pokazat_put() {
+	_pl=""
+	[ -r "$PATHFILE" ] && _pl=$(sed -n 's/.*"label": *"\([^"]*\)".*/\1/p' "$PATHFILE" 2>/dev/null | head -n 1)
+	if [ -n "$_pl" ]; then echo "Путь: $_pl"; else echo "Путь: пока не выбран"; fi
+}
+
+# versiya_klienta — то, что клиент называет сам (`-version`); пусто, если программы нет или она не ответила.
+versiya_klienta() {
+	[ -x "$BIN" ] || return 0
+	if command -v timeout >/dev/null 2>&1; then
+		_vk=$(timeout 8 "$BIN" -version < /dev/null 2>/dev/null | head -n 1 | tr -d '\r\n ')
+	else
+		_vk=$("$BIN" -version < /dev/null 2>/dev/null | head -n 1 | tr -d '\r\n ')
+	fi
+	case "$_vk" in [0-9]*.[0-9]*) printf '%s' "$_vk" ;; esac
+	return 0
+}
+
+# schet_ssylok — «задано» и «живых»; значения ссылок не печатаются.
+HASH_N=0; HASH_LIVE=0
+schet_ssylok() {
+	HASH_N=0; HASH_LIVE=0
+	for _h in $(printf '%s' "${VK_HASHES:-}" | tr ',;' '  '); do
+		[ -n "$_h" ] || continue
+		HASH_N=$((HASH_N + 1))
+		if grep -F -q "\"$_h\":\"dead\"" "$DEADFILE" 2>/dev/null; then :; else HASH_LIVE=$((HASH_LIVE + 1)); fi
+	done
+}
+
+# ---------- сервер ключей ----------
+
+# zapros_klyucha — ответ сервера ключей одной строкой. 1 — не ответил. Ключ уходит только в адрес запроса.
+zapros_klyucha() {
+	[ -n "${PASSWORD:-}" ] || return 1
+	_zq="$KEYURL?key=$PASSWORD"
+	[ -z "${DEVICE_ID:-}" ] || _zq="$_zq&device_id=$DEVICE_ID"
+	_zo=""
+	if command -v curl >/dev/null 2>&1; then
+		_zo=$(curl -fsSL --connect-timeout 5 --max-time 15 "$_zq" 2>/dev/null | head -c 4000 | tr -d '\n\r')
+	fi
+	if [ -z "$_zo" ] && command -v uclient-fetch >/dev/null 2>&1; then
+		_zo=$(uclient-fetch -q -T 15 -O - "$_zq" 2>/dev/null | head -c 4000 | tr -d '\n\r')
+	fi
+	if [ -z "$_zo" ] && command -v wget >/dev/null 2>&1; then
+		_zo=$(wget -q -O - "$_zq" 2>/dev/null | head -c 4000 | tr -d '\n\r')
+	fi
+	_zq=""
+	case "$_zo" in *'"status":"answered"'*) printf '%s' "$_zo"; return 0 ;; esac
+	return 1
+}
+jstr() { printf '%s' "$2" | sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" | tr -d '\000-\037'; }
+jnum() { printf '%s' "$2" | sed -n "s/.*\"$1\":\([0-9][0-9]*\).*/\1/p"; }
+# data_msk — дата по Москве; пусто, если date этой сборки не понимает «-d @».
+data_msk() {
+	_dm=$(TZ=MSK-3 date -d "@$1" +%d.%m.%Y 2>/dev/null)
+	case "$_dm" in [0-9][0-9].[0-9][0-9].[0-9][0-9][0-9][0-9]) printf '%s' "$_dm" ;; esac
+	return 0
+}
+
+# pochemu_ne_goden — одна фраза, почему ключ НЕ годится для этого роутера (по ответу сервера), или пусто, если годится.
+# Годится: verdict ok, не Базовый (на роутере работает только Премиум), не привязан к другому устройству.
+pochemu_ne_goden() {
+	_pv=$(jstr verdict "$1"); _pe=$(jnum expires_at "$1"); _pm=$(jstr message "$1")
+	_pd=""; case "$_pe" in ""|0) ;; *) _pd=$(data_msk "$_pe") ;; esac
+	[ -n "$_pd" ] || _pd=$(printf '%s' "$_pm" | sed -n 's/.*\([0-9][0-9]\.[0-9][0-9]\.[0-9][0-9][0-9][0-9]\).*/\1/p')
+	case "$_pv" in
+		ok) ;;
+		unknown) echo "такого ключа нет — проверьте, что скопировали его целиком"; return 0 ;;
+		expired) echo "срок ключа истёк${_pd:+ $_pd} — продлите его в боте @jincomputers_bot"; return 0 ;;
+		deactivated|revoked|deleted) echo "ключ отключён — напишите в поддержку"; return 0 ;;
+		rotated) echo "этот ключ заменён новым при перепривязке — возьмите новый ключ в боте @jincomputers_bot"; return 0 ;;
+		*) echo "сервер ключей ответил непонятно (${_pv:-без вердикта})"; return 0 ;;
+	esac
+	case "$1" in *'"tier":"basic"'*) echo "ключ тарифа Базовый — на роутере работает только Премиум (повысить ключ до Премиума можно в боте @jincomputers_bot, ключ останется прежним)"; return 0 ;; esac
+	case "$1" in *'"bound":"other"'*) echo "ключ привязан к другому устройству — для роутера нужен отдельный ключ или отвяжите этот от прежнего устройства"; return 0 ;; esac
+	return 0
+}
+
+# opisat_klyuch — строки «Ключ/Тариф/Срок/Привязка» по ответу сервера. 1 — ключ не действует.
+opisat_klyuch() {
+	_ov=$(jstr verdict "$1"); _om=$(jstr message "$1"); _oe=$(jnum expires_at "$1"); _ob=$(jstr bound "$1")
+	# Срок: expires_at=0 — бессрочный (даты из текста не берём). Нет поля вовсе или date не умеет «-d @» — дата из фразы сервера.
+	_od=""; case "$_oe" in 0) ;; *) [ -z "$_oe" ] || _od=$(data_msk "$_oe") ;; esac
+	if [ -z "$_od" ] && [ "$_oe" != 0 ]; then
+		_od=$(printf '%s' "$_om" | sed -n 's/.*\([0-9][0-9]\.[0-9][0-9]\.[0-9][0-9][0-9][0-9]\).*/\1/p')
+	fi
+	case "$_ov" in
+		ok) ;;
+		unknown) echo "Ключ: НЕ действует — такого ключа нет"; return 1 ;;
+		expired) echo "Ключ: НЕ действует — срок истёк${_od:+ $_od}"; return 1 ;;
+		deactivated|revoked|deleted) echo "Ключ: НЕ действует — ключ отключён"; return 1 ;;
+		rotated) echo "Ключ: НЕ действует — заменён новым при перепривязке"; return 1 ;;
+		*) echo "Ключ: сервер ответил непонятно (${_ov:-без вердикта})"; return 1 ;;
+	esac
+	echo "Ключ: действует"
+	case "$1" in *'"tier":"basic"'*) _ot="Базовый (на роутере работает только Премиум)" ;; *) _ot="Премиум" ;; esac
+	echo "Тариф: $_ot"
+	case "$1" in *'"trial":true'*) echo "Пробный ключ: да" ;; esac
+	if [ -n "$_od" ]; then echo "Срок: до $_od (по Москве)"; else echo "Срок: бессрочный"; fi
+	case "$_ob" in
+		this) echo "Привязка: к этому роутеру" ;;
+		other) echo "Привязка: к ДРУГОМУ устройству — на этом роутере ключ не заработает, пока его не отвяжут" ;;
+		none) echo "Привязка: не привязан" ;;
+	esac
+	return 0
+}
+
+cmd_key_check() {
+	lc || return 1
+	if [ -z "${PASSWORD:-}" ]; then echo "В настройках нет ключа."; return 1; fi
+	_kc=$(zapros_klyucha) || { echo "Сервер ключей не ответил — проверить не удалось. Проверьте связь и повторите."; return 1; }
+	opisat_klyuch "$_kc"
+}
+
+# ---------- замена ключа ----------
+
+# zamenit_klyuch НОВЫЙ — переписать PASSWORD в настройках без передачи ключа в аргументах программ: файл читается и
+# пишется встроенными средствами оболочки, права 0600 ставятся на временный файл ДО записи. Нет строки PASSWORD — допишется.
+zamenit_klyuch() {
+	_zk_tmp="$CONF.tmp.$$"
+	: > "$_zk_tmp" 2>/dev/null || return 1
+	chmod 600 "$_zk_tmp" 2>/dev/null
+	_zk_est=0
+	while IFS= read -r _zk_l || [ -n "$_zk_l" ]; do
+		case "$_zk_l" in
+			PASSWORD=*) printf 'PASSWORD="%s"\n' "$1" >> "$_zk_tmp"; _zk_est=1 ;;
+			*) printf '%s\n' "$_zk_l" >> "$_zk_tmp" ;;
+		esac
+	done < "$CONF"
+	[ "$_zk_est" = 1 ] || printf 'PASSWORD="%s"\n' "$1" >> "$_zk_tmp"
+	if [ -s "$_zk_tmp" ] && mv -f "$_zk_tmp" "$CONF"; then
+		chmod 600 "$CONF" 2>/dev/null
+		return 0
+	fi
+	rm -f "$_zk_tmp"
+	return 1
+}
+
+# vernut_nastrojki — вернуть настройки из копии .pered-key (через временный файл рядом, права 0600).
+vernut_nastrojki() {
+	[ -f "$CONF.pered-key" ] || return 1
+	_vn_tmp="$CONF.tmp.$$"
+	: > "$_vn_tmp" 2>/dev/null; chmod 600 "$_vn_tmp" 2>/dev/null
+	cat "$CONF.pered-key" > "$_vn_tmp" 2>/dev/null && mv -f "$_vn_tmp" "$CONF" && chmod 600 "$CONF" 2>/dev/null
+}
+
+cmd_key() {
+	[ "${1:-}" = set ] || { echo "Использование: meridian-ctl key set [ключ]" >&2; return 1; }
+	shift
+	lc || return 1
+	if [ "$#" -ge 1 ]; then
+		_nk="$1"
+	else
+		# Ключ вводится скрыто и в историю команд не попадает. Нет терминала (ключ подан по конвейеру) — читаем как есть.
+		if [ -t 0 ]; then
+			printf 'Введите новый ключ (ввод скрыт): ' >&2
+			trap 'stty echo 2>/dev/null' INT TERM
+			stty -echo 2>/dev/null
+			read -r _nk
+			stty echo 2>/dev/null
+			trap - INT TERM
+			echo >&2
+		else
+			read -r _nk
+		fi
+	fi
+	_nk=$(printf '%s' "$_nk" | tr -d ' \t\r\n')
+	# Вид ключа. Значение в сообщениях НЕ повторяется.
+	case "$_nk" in
+		""|*[!A-Za-z0-9_-]*) echo "Ключ должен состоять из 16–32 знаков: латинские буквы, цифры, «_» и «-». Ничего не изменено." >&2; return 1 ;;
+	esac
+	if [ "${#_nk}" -lt 16 ] || [ "${#_nk}" -gt 32 ]; then
+		echo "Ключ должен состоять из 16–32 знаков: латинские буквы, цифры, «_» и «-». Ничего не изменено." >&2; return 1
+	fi
+	if [ "$_nk" = "${PASSWORD:-}" ]; then
+		echo "Этот ключ уже записан в настройках — менять нечего."
+		return 0
+	fi
+	# Проверка по серверу ключей ДО записи: негодный ключ в настройки не попадает.
+	_sp="${PASSWORD:-}"; PASSWORD="$_nk"
+	_ans=$(zapros_klyucha) && _zr=0 || _zr=1
+	PASSWORD="$_sp"
+	if [ "$_zr" != 0 ]; then
+		echo "Сервер ключей не ответил — проверить ключ не удалось, поэтому ничего не изменено. Проверьте связь и повторите." >&2
+		return 1
+	fi
+	_why=$(pochemu_ne_goden "$_ans")
+	if [ -n "$_why" ]; then
+		echo "Ключ не принят: $_why. Ничего не изменено." >&2
+		return 1
+	fi
+	# Копия прежних настроек, затем запись.
+	cp -p "$CONF" "$CONF.pered-key" 2>/dev/null && chmod 600 "$CONF.pered-key" 2>/dev/null || { echo "Не удалось снять копию настроек — ничего не изменено." >&2; return 1; }
+	if ! zamenit_klyuch "$_nk"; then
+		vernut_nastrojki
+		echo "Не удалось записать настройки — ничего не изменено." >&2
+		return 1
+	fi
+	if perezapustit_i_zhdat; then
+		echo "Ключ принят. Клиент перезапущен с новым ключом."
+		logger -t meridian "ключ клиента заменён (значение не записывается)" 2>/dev/null || true
+		return 0
+	fi
+	_pr="$PEREZAPUSK_POCHEMU"
+	# Откат: прежние настройки назад и перезапуск ещё раз.
+	vernut_nastrojki
+	if perezapustit_i_zhdat; then
+		echo "Клиент не поднялся: $_pr. Вернул прежний ключ, клиент работает. Причина — в журнале: meridian-ctl log" >&2
+	else
+		echo "Клиент не поднялся: $_pr, и с прежним ключом тоже (прежние настройки возвращены). Причина — в журнале: meridian-ctl log" >&2
+	fi
+	return 1
+}
+
+# perezapustit_i_zhdat — restart службы и ожидание до 30 с (QWDTT_PEREZAPUSK_VAIT): процесс появился и жив два опроса подряд.
+# 0 — поднялся; 1 — нет, причина в PEREZAPUSK_POCHEMU.
+PEREZAPUSK_POCHEMU=""
+perezapustit_i_zhdat() {
+	_t="${QWDTT_PEREZAPUSK_VAIT:-30}"
+	PEREZAPUSK_POCHEMU=""
+	"$INITD" restart >/dev/null 2>&1
+	_n=0; _u=0; _v=0
+	while [ "$_n" -lt "$_t" ]; do
+		if klient_pid >/dev/null; then
+			_v=1; _u=$((_u + 1))
+			[ "$_u" -ge 2 ] && return 0
+		else
+			[ "$_v" = 1 ] && break
+			_u=0
+		fi
+		_n=$((_n + 1)); sleep 1
+	done
+	if [ "$_v" = 1 ]; then PEREZAPUSK_POCHEMU="процесс упал сразу после запуска"; else PEREZAPUSK_POCHEMU="процесс не появился за $_t с"; fi
+	return 1
+}
+
+# ---------- транспорт ----------
+
+# cmd_transport — ключ TRANSPORT в настройках (читается при СТАРТЕ клиента, поэтому после смены — restart).
+#   auto   — умолчание: клиент сам перебирает пути;
+#   direct — только прямой путь до шлюза;
+#   tcp    — только TCP 56004, затем TLS 443; без UDP/DTLS и без VK/DION. РЕЗЕРВА НЕТ;
+#   relay  — через ретранслятор.
+# Запись — тем же способом, что и остальные настройки (временный файл рядом, права 0600, mv). Не поднялся — прежнее значение
+# возвращается и клиент перезапускается ещё раз.
+cmd_transport() {
+	lc || return 1
+	_tc="${TRANSPORT:-auto}"
+	if [ "$#" -eq 0 ]; then
+		echo "Транспорт: $_tc"
+		echo "Допустимо: auto (по умолчанию), direct, tcp, relay. Сменить: meridian-ctl transport <значение> (клиент перезапустится)."
+		return 0
+	fi
+	case "$1" in
+		auto|direct|tcp|relay) ;;
+		*) echo "Транспорт «$1» не бывает. Допустимо: auto, direct, tcp, relay." >&2; return 1 ;;
+	esac
+	if [ "$1" = "$_tc" ]; then
+		echo "Транспорт уже $1 — менять нечего."
+		return 0
+	fi
+	if [ "$1" = tcp ]; then
+		echo "Внимание — резерва нет: если TCP до шлюза недоступен, туннеля не будет; возврат: meridian-ctl transport auto"
+	fi
+	set_conf TRANSPORT "$1" || { echo "Не удалось записать настройки — ничего не изменено." >&2; return 1; }
+	if perezapustit_i_zhdat; then
+		echo "Транспорт: $1. Клиент перезапущен."
+		return 0
+	fi
+	_pr="$PEREZAPUSK_POCHEMU"
+	set_conf TRANSPORT "$_tc" >/dev/null 2>&1
+	perezapustit_i_zhdat >/dev/null 2>&1
+	echo "Клиент не поднялся: $_pr. Транспорт возвращён: $_tc. Причина — в журнале: meridian-ctl log" >&2
+	return 1
+}
+
+# ---------- команды ----------
+
+cmd_status() {
+	lc || true
+	echo "Meridian — клиент для OpenWrt"
+	if [ -x "$INITD" ]; then
+		if "$INITD" enabled >/dev/null 2>&1; then _au="автозапуск включён"; else _au="автозапуск ВЫКЛЮЧЕН"; fi
+	else
+		_au="службы нет"
+	fi
+	_pid=$(klient_pid)
+	if [ -n "$_pid" ]; then
+		echo "Служба: работает ($_au), процесс клиента есть (PID $_pid)"
+	else
+		echo "Служба: НЕ работает ($_au), процесса клиента нет"
+	fi
+	pokazat_tunel
+	pokazat_put
+	_ver=$(versiya_klienta)
+	if [ -n "$_ver" ]; then echo "Версия клиента: $_ver"; else echo "Версия клиента: не удалось узнать"; fi
+	[ -z "${SCRIPTS_VER:-}" ] || echo "Версия скриптов: $SCRIPTS_VER"
+	if [ -n "${PASSWORD:-}" ]; then
+		if _st=$(zapros_klyucha); then
+			_tv=$(jstr verdict "$_st")
+			if [ "$_tv" = ok ]; then
+				case "$_st" in *'"tier":"basic"'*) echo "Тариф: Базовый (на роутере работает только Премиум)" ;; *) echo "Тариф: Премиум" ;; esac
+			else
+				echo "Тариф: ключ не действует (подробнее: meridian-ctl key-check)"
+			fi
+		else
+			echo "Тариф: не удалось узнать (сервер ключей не ответил)"
+		fi
+	fi
+	schet_ssylok
+	if [ "$HASH_N" -eq 0 ]; then
+		echo "Ссылки VK: не заданы — работает только прямой путь"
+	else
+		echo "Живых ссылок VK: $HASH_LIVE из $HASH_N"
+	fi
+	[ -n "${DION:-}" ] && echo "Комнаты DION: заданы"
+	return 0
+}
+
+cmd_ctl_servis() { # start|stop|restart
+	[ -x "$INITD" ] || { echo "Службы клиента нет ($INITD) — установка не завершена." >&2; return 1; }
+	case "$1" in
+		start) echo "Запускаю клиента…" ;;
+		stop) echo "Останавливаю клиента…" ;;
+		restart) echo "Перезапускаю клиента…" ;;
+	esac
+	"$INITD" "$1" >/dev/null 2>&1
+	_cc=$?
+	if [ "$1" != stop ]; then
+		_i=0
+		while [ "$_i" -lt 6 ]; do
+			klient_pid >/dev/null && break
+			sleep 1; _i=$((_i + 1))
+		done
+		if klient_pid >/dev/null; then echo "Клиент работает."; else echo "Клиент не запустился. Причина — в журнале: meridian-ctl log"; return 1; fi
+	else
+		_i=0
+		while [ "$_i" -lt 6 ]; do
+			klient_pid >/dev/null || break
+			sleep 1; _i=$((_i + 1))
+		done
+		if klient_pid >/dev/null; then echo "Клиент ещё работает — повторите через минуту."; return 1; else echo "Клиент остановлен."; fi
+	fi
+	return "$_cc"
+}
+
+cmd_log() {
+	_n="${1:-60}"
+	case "$_n" in ''|*[!0-9]*) echo "Использование: meridian-ctl log [N] — N число строк." >&2; return 1 ;; esac
+	[ "$_n" -gt 0 ] || { echo "N должно быть больше нуля." >&2; return 1; }
+	logread -e qwdtt 2>/dev/null | tail -n "$_n" | vid
+	return 0
+}
+
+cmd_version() {
+	lc || true
+	_ver=$(versiya_klienta)
+	if [ -n "$_ver" ]; then echo "Клиент Meridian: $_ver"; else echo "Версию клиента узнать не удалось (программа не отвечает или не установлена)."; fi
+	[ -z "${SCRIPTS_VER:-}" ] || echo "Скрипты: $SCRIPTS_VER"
+	return 0
+}
+
+# primenit — после правки настроек: клиент читает их при запуске. Рабочую связь не рвём — как делает панель.
+primenit() {
+	if tunel_zhiv; then
+		echo "Сохранено. Клиент читает настройки при запуске: чтобы применить сейчас, выполните meridian-ctl restart (связь прервётся на несколько секунд)."
+	else
+		echo "Сохранено. Связи сейчас нет — перезапускаю клиента, чтобы настройки вступили в силу."
+		cmd_ctl_servis restart >/dev/null 2>&1
+		if klient_pid >/dev/null; then echo "Клиент перезапущен."; else echo "Клиент не запустился. Причина — в журнале: meridian-ctl log"; fi
+	fi
+}
+
+# pokozh_na_klyuch — значение совпадает с ключом клиента (или с 16 буквами и цифрами, как у наших ключей). Без вывода значения.
+pokozh_na_klyuch() {
+	[ -z "${PASSWORD:-}" ] || [ "$1" != "$PASSWORD" ] || return 0
+	[ "${#1}" -eq 16 ] || return 1
+	case "$1" in *[!A-Za-z0-9]*) return 1 ;; esac
+	return 0
+}
+
+cmd_hashes() {
+	lc || return 1
+	case "${1:-}" in
+		count)
+			schet_ssylok
+			echo "Ссылок VK задано: $HASH_N, живых: $HASH_LIVE"
+			;;
+		clear)
+			set_conf VK_HASHES "" || return 1
+			echo "Все ссылки VK убраны: клиент будет работать только по прямому пути."
+			primenit
+			;;
+		set)
+			shift
+			[ "$#" -gt 0 ] || { echo "Использование: meridian-ctl hashes set <ссылки через пробел или запятую>" >&2; return 1; }
+			_list=""; _k=0; _bad=0; _pos=0
+			set -f
+			for _t in $(printf '%s ' "$@" | tr ',;' '  '); do
+				_pos=$((_pos + 1))
+				_h=${_t##*join/}
+				_h=${_h%%[?&#]*}
+				while :; do case "$_h" in /*) _h=${_h#/} ;; *) break ;; esac; done
+				while :; do case "$_h" in */) _h=${_h%/} ;; *) break ;; esac; done
+				if [ -n "${PASSWORD:-}" ] && { [ "$_t" = "$PASSWORD" ] || [ "$_h" = "$PASSWORD" ]; }; then
+					echo "Значение №$_pos — это ваш КЛЮЧ, а не ссылка на звонок VK. Ничего не сохранено." >&2
+					return 1
+				fi
+				case "$_h" in
+					*[!A-Za-z0-9_-]*|"") echo "Значение №$_pos не похоже на ссылку на звонок VK (нужна ссылка вида vk.com/call/join/… или сам код)." >&2; _bad=1; continue ;;
+				esac
+				if [ "${#_h}" -lt 20 ] || [ "${#_h}" -gt 80 ]; then
+					echo "Значение №$_pos не похоже на ссылку на звонок VK (неподходящая длина)." >&2; _bad=1; continue
+				fi
+				case ",$_list," in *",$_h,"*) continue ;; esac
+				_list="${_list:+$_list,}$_h"; _k=$((_k + 1))
+			done
+			set +f
+			[ "$_bad" = 0 ] || { echo "Ничего не сохранено: исправьте значения и повторите." >&2; return 1; }
+			[ "$_k" -gt 0 ] || { echo "Ссылок не найдено. Ничего не сохранено." >&2; return 1; }
+			if [ "$_k" -gt 5 ]; then echo "Ссылок больше пяти ($_k) — оставьте не больше пяти. Ничего не сохранено." >&2; return 1; fi
+			set_conf VK_HASHES "$_list" || return 1
+			echo "Сохранено ссылок VK: $_k"
+			primenit
+			;;
+		*) echo "Использование: meridian-ctl hashes count | set <ссылки> | clear" >&2; return 1 ;;
+	esac
+}
+
+# dion_kod — код комнаты из ссылки или из самого кода; разбор тот же, что в панели. Результат — в DION_KOD
+# (не печатью: вызов в подоболочке потерял бы DION_POLNAYA). 1 — не разобрали.
+DION_KOD=""; DION_POLNAYA=0
+dion_kod() {
+	DION_KOD=""
+	_ds=$(printf '%s' "$1" | tr -d ' \t')
+	_dl=$(printf '%s' "$_ds" | tr 'A-Z' 'a-z')
+	case "$_dl" in
+		https://*) _ds=$(printf '%s' "$_ds" | cut -c9-); _dl=$(printf '%s' "$_dl" | cut -c9-) ;;
+		http://*) _ds=$(printf '%s' "$_ds" | cut -c8-); _dl=$(printf '%s' "$_dl" | cut -c8-) ;;
+	esac
+	case "$_dl" in www.*) _ds=$(printf '%s' "$_ds" | cut -c5-); _dl=$(printf '%s' "$_dl" | cut -c5-) ;; esac
+	DION_POLNAYA=0
+	case "$_dl" in
+		dion.vc/*)
+			DION_POLNAYA=1
+			_ds=$(printf '%s' "$_ds" | cut -c9-); _dl=$(printf '%s' "$_dl" | cut -c9-)
+			case "$_dl" in event/*) _ds=$(printf '%s' "$_ds" | cut -c7-) ;; *) return 1 ;; esac
+			_ds=${_ds%%[?#]*}
+			_ds=${_ds%/}
+			;;
+	esac
+	[ -n "$_ds" ] && [ "${#_ds}" -le 128 ] || return 1
+	case "$_ds" in *[!A-Za-z0-9_-]*) return 1 ;; esac
+	case "$_ds" in [A-Za-z0-9]*) ;; *) return 1 ;; esac
+	DION_KOD="$_ds"
+	return 0
+}
+
+cmd_dion() {
+	lc || return 1
+	case "${1:-}" in
+		show)
+			if [ -z "${DION:-}" ]; then echo "Комнаты DION не заданы."; return 0; fi
+			_n=0
+			for _r in $(printf '%s' "$DION" | tr ',' ' '); do
+				_n=$((_n + 1)); echo "Комната $_n: $_r"
+			done
+			;;
+		clear)
+			set_conf DION "" || return 1
+			[ "${RELAY_PRIMARY:-}" != dion ] || set_conf RELAY_PRIMARY "vk"
+			echo "Комнаты DION убраны."
+			primenit
+			;;
+		set)
+			shift
+			[ "$#" -gt 0 ] || { echo "Использование: meridian-ctl dion set <ссылки через пробел или запятую>" >&2; return 1; }
+			_list=""; _k=0; _pos=0; _bad=0
+			set -f
+			for _t in $(printf '%s ' "$@" | tr ',;' '  '); do
+				_pos=$((_pos + 1))
+				if [ -n "${PASSWORD:-}" ] && [ "$_t" = "$PASSWORD" ]; then
+					echo "Значение №$_pos — это ваш КЛЮЧ, а не комната DION. Ничего не сохранено." >&2
+					return 1
+				fi
+				if ! dion_kod "$_t"; then
+					echo "Значение №$_pos не похоже на комнату DION. Нужна ссылка https://dion.vc/event/… или код комнаты." >&2; _bad=1; continue
+				fi
+				_kod="$DION_KOD"
+				if [ -n "${PASSWORD:-}" ] && [ "$_kod" = "$PASSWORD" ]; then
+					echo "Значение №$_pos содержит ваш КЛЮЧ, а не код комнаты DION. Ничего не сохранено." >&2
+					return 1
+				fi
+				if [ "$DION_POLNAYA" = 0 ] && pokozh_na_klyuch "$_kod"; then
+					echo "Значение №$_pos похоже на ключ (16 букв и цифр), а не на код комнаты DION. Если это комната, вставьте полную ссылку https://dion.vc/event/…" >&2
+					return 1
+				fi
+				case ",$_list," in *",https://dion.vc/event/$_kod,"*) continue ;; esac
+				_list="${_list:+$_list,}https://dion.vc/event/$_kod"; _k=$((_k + 1))
+			done
+			set +f
+			[ "$_bad" = 0 ] || { echo "Ничего не сохранено: исправьте значения и повторите." >&2; return 1; }
+			[ "$_k" -gt 0 ] || { echo "Комнат не найдено. Ничего не сохранено." >&2; return 1; }
+			if [ "$_k" -gt 3 ]; then echo "Комнат больше трёх ($_k) — оставьте не больше трёх. Ничего не сохранено." >&2; return 1; fi
+			set_conf DION "$_list" || return 1
+			echo "Сохранено комнат DION: $_k"
+			primenit
+			;;
+		*) echo "Использование: meridian-ctl dion show | set <ссылки> | clear" >&2; return 1 ;;
+	esac
+}
+
+# ---------- доустановка ----------
+
+bootstrap_get() { # bootstrap_get КУДА АДРЕС
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --connect-timeout 5 --max-time 120 -o "$1" "$2" 2>/dev/null && [ -s "$1" ] && return 0
+	fi
+	if command -v uclient-fetch >/dev/null 2>&1; then
+		uclient-fetch -q -T 60 -O "$1" "$2" 2>/dev/null && [ -s "$1" ] && return 0
+	fi
+	if command -v wget >/dev/null 2>&1; then
+		wget -q -O "$1" "$2" 2>/dev/null && [ -s "$1" ] && return 0
+	fi
+	rm -f "$1" 2>/dev/null
+	return 1
+}
+
+cmd_repair() {
+	LIST_ONLY=0
+	[ "${1:-}" = "--list" ] && LIST_ONLY=1
+	mkdir -p "$RUNTMP" 2>/dev/null
+	INS="$RUNTMP/install.sh"; SUMS="$RUNTMP/SHA256SUMS"
+	BASE=""
+	for _b in $REPAIR_BASES; do
+		echo "Подключаюсь к источнику: $(printf '%s' "$_b" | sed -e 's#.*45\.10\.247\.23.*#зеркало RU#' -e 's#.*githubusercontent.*#GitHub#' -e 's#.*138\.124\.78\.252.*#сервер#')…"
+		bootstrap_get "$INS" "$_b/install.sh" && bootstrap_get "$SUMS" "$_b/SHA256SUMS" || { echo "  источник не ответил — пробую следующий"; continue; }
+		head -n 1 "$INS" | grep -q '^#!' || { echo "  пришёл не установщик — пробую следующий"; continue; }
+		_want=$(awk '$2 == "install.sh" {print $1}' "$SUMS" | head -n 1)
+		_have=$(sha256sum "$INS" 2>/dev/null | awk '{print $1}')
+		[ -n "$_want" ] && [ "$_want" = "$_have" ] || { echo "  установщик не сошёлся с SHA256SUMS — пробую следующий"; continue; }
+		BASE="$_b"; break
+	done
+	if [ -z "$BASE" ]; then
+		echo "Не удалось скачать установщик ни из одного источника. Проверьте интернет на роутере и повторите." >&2
+		return 1
+	fi
+	# Подключаем установщик без запуска (в нём определение архитектуры и безопасное скачивание) и снимаем его set -e.
+	QWDTT_INSTALL_SOURCE_ONLY=1 . "$INS"
+	set +e
+	ARCH=$( detect_arch >/dev/null 2>&1; echo "$ARCH" )
+	if [ -z "$ARCH" ]; then
+		echo "Не удалось определить архитектуру роутера. Укажите: ARCH_OVERRIDE=arm64 meridian-ctl repair" >&2
+		return 1
+	fi
+	pick_downloader || return 1
+	BASE_URLS="$BASE"
+	_cl=$(dist_name "qwdtt-$ARCH"); _wb=$(dist_name "qwdtt-web-$ARCH")
+	# Пятое поле — как файл называется для человека: путей с внутренними именами в тексте нет.
+	ITEMS="$_cl $INSTALL_DIR/qwdtt 1000000 elf клиент
+$_wb $INSTALL_DIR/qwdtt-web 1000000 elf панель
+qwdtt-run $INSTALL_DIR/qwdtt-run 500 script запускатель клиента
+meridian-ctl-openwrt $INSTALL_DIR/meridian-ctl 500 script meridian-ctl
+meridian-dns-confdir-openwrt $INSTALL_DIR/meridian-dns-confdir 500 script автонастройка каталога DNS
+qwdtt-init-openwrt $INITD_OPENWRT_DIR/qwdtt 500 script автозапуск клиента
+qwdtt-web-init-openwrt.sh $INITD_OPENWRT_DIR/qwdtt-web 300 script автозапуск панели
+meridian-mode-openwrt $INSTALL_DIR/meridian-mode 500 script переключатель режимов
+meridian-route-hold $INSTALL_DIR/meridian-route-hold 500 script предохранитель маршрута"
+	BAD=""; UNCHECKED=""
+	echo ""
+	echo "Что должно стоять на роутере:"
+	while read -r SRC DST MIN KIND LABEL; do
+		[ -n "$SRC" ] || continue
+		WANT=$(awk -v n="$SRC" '$2 == n {print $1}' "$SUMS" 2>/dev/null | head -n 1)
+		if [ ! -f "$DST" ]; then
+			echo "  НЕТ:          $LABEL"; BAD="$BAD$SRC $DST $MIN $KIND
+"; continue
+		fi
+		if [ -z "$WANT" ]; then
+			echo "  НЕ ПРОВЕРЕН:  $LABEL (в SHA256SUMS раздачи для него суммы нет)"; UNCHECKED="$UNCHECKED$SRC "; continue
+		fi
+		HAVE=$(sha256sum "$DST" 2>/dev/null | awk '{print $1}')
+		if [ "$WANT" = "$HAVE" ]; then
+			echo "  на месте:     $LABEL"
+		else
+			echo "  НЕ ТА ВЕРСИЯ: $LABEL (сумма не совпала с раздачей)"; BAD="$BAD$SRC $DST $MIN $KIND
+"
+		fi
+	done <<ITEMS_EOF
+$ITEMS
+ITEMS_EOF
+	if [ -z "$BAD" ]; then
+		echo ""
+		if [ -n "$UNCHECKED" ]; then
+			echo "Доустанавливать нечего, но НЕ ВСЁ ПРОВЕРЕНО: в раздаче нет сумм для: $UNCHECKED"
+			echo "Это не «в порядке». Сообщите нам — похоже, состав раздачи неполон."
+			return 1
+		fi
+		echo "Всё на месте и совпадает с раздачей — доустанавливать нечего."
+		return 0
+	fi
+	if [ "$LIST_ONLY" = 1 ]; then
+		echo ""; echo "Это только показ. Доустановить: meridian-ctl repair"; return 0
+	fi
+	echo ""; echo "Доустанавливаю недостающее:"
+	FAILED=0
+	while read -r SRC DST MIN KIND LABEL; do
+		[ -n "$SRC" ] || continue
+		# Копия прежнего файла — на случай неудачи подмены; удаляется после успеха (на флеше места мало).
+		[ -f "$DST" ] && cp -p "$DST" "$DST.prev-repair" 2>/dev/null
+		if fetch_to_target "$SRC" "$DST" "$MIN" "$KIND"; then
+			chmod 755 "$DST" 2>/dev/null
+			rm -f "$DST.prev-repair" 2>/dev/null
+			echo "  поставлено:   $LABEL"
+		else
+			[ -f "$DST.prev-repair" ] && mv -f "$DST.prev-repair" "$DST" 2>/dev/null
+			echo "  НЕ ВЫШЛО:     $LABEL"; FAILED=1
+		fi
+	done <<BAD_EOF
+$BAD
+BAD_EOF
+	echo ""
+	if [ -x "$INITD_OPENWRT_DIR/qwdtt" ]; then echo "Перезапускаю клиента…"; "$INITD_OPENWRT_DIR/qwdtt" restart >/dev/null 2>&1; fi
+	if [ -x "$INITD_OPENWRT_DIR/qwdtt-web" ]; then echo "Перезапускаю панель…"; "$INITD_OPENWRT_DIR/qwdtt-web" restart >/dev/null 2>&1; fi
+	sleep 3
+	if [ "$FAILED" = 1 ]; then
+		echo "Часть файлов доустановить не удалось — причины выше. Повторите команду; если повторяется, пришлите нам весь вывод."
+		return 1
+	fi
+	echo "Доустановка завершена. Проверьте: meridian-ctl status"
+	return 0
+}
+
+cmd_dns_confdir() {
+	_t="${QWDTT_DNS_CONFDIR_TOOL:-/usr/sbin/meridian-dns-confdir}"
+	if [ ! -x "$_t" ]; then
+		echo "Файла автонастройки DNS нет на роутере. Он ставится установщиком или командой: meridian-ctl repair" >&2
+		return 1
+	fi
+	"$_t"
+}
+
+case "${1:-}" in
+	status) cmd_status ;;
+	start|stop|restart) cmd_ctl_servis "$1" ;;
+	log) shift; cmd_log "$@" ;;
+	version|--version|-v) cmd_version ;;
+	dion) shift; cmd_dion "$@" ;;
+	hashes) shift; cmd_hashes "$@" ;;
+	key-check) cmd_key_check ;;
+	key) shift; cmd_key "$@" ;;
+	dns-confdir) cmd_dns_confdir ;;
+	transport) shift; cmd_transport "$@" ;;
+	repair|доустановить) shift; cmd_repair "$@" ;;
+	""|help|-h|--help) usage ;;
+	*) echo "Неизвестная команда «$1»." >&2; usage >&2; exit 1 ;;
+esac
