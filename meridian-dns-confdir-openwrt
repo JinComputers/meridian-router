@@ -1,0 +1,86 @@
+#!/bin/sh
+# meridian-dns-confdir — подготовить постоянный каталог настроек dnsmasq (confdir) на OpenWrt. ОДНА копия этой логики:
+# её зовут установщик (шаг «DNS»), `meridian-ctl dns-confdir` и — после выпуска панели — кнопка «Обновить DNS».
+#
+# Зачем. Список доменов («Свои маршруты», белый режим) сервер DNS кладёт в каталог настроек dnsmasq. По умолчанию каталог —
+# /tmp/dnsmasq.<секция>.d, он пропадает при перезагрузке; нужен постоянный /etc/dnsmasq.d.
+#
+# ПРАВИЛО (Кот 1, 17.10.2026). Задаём confdir ТОЛЬКО если: confdir в настройках пуст, секция dnsmasq ровно одна, каталог по
+# умолчанию /tmp/dnsmasq.<секция>.d пуст (нет чужих файлов — adblock, pbr и т. п.). Иначе НЕ меняем ничего и говорим одну строку:
+#   «Автонастройка DNS не выполнена: <причина>. Напишите в поддержку.»   (она же уходит в системный журнал).
+# Идемпотентно: confdir уже наш — «менять нечего», код 0; повторный запуск ничего не ломает.
+# ОТКАТ: после перезапуска dnsmasq должен быть жив (pidof dnsmasq) и отвечать (nslookup openwrt.org 127.0.0.1, а при
+# недоступном интернете — хотя бы nslookup localhost 127.0.0.1); иначе возвращаем прежние настройки и перезапускаем снова.
+# Замены пакета dnsmasq на dnsmasq-full здесь НЕТ и не будет.
+#
+# Коды: 0 — настроено или уже было; 1 — не выполнено (причина в последней строке вывода).
+# Пути и команды переопределяются переменными только для прогонов на поддельном дереве.
+
+CONFDIR="${QWDTT_DNSMASQ_CONFDIR:-/etc/dnsmasq.d}"
+TMPDIR_DNS="${QWDTT_DNSMASQ_TMPDIR:-/tmp}"
+DHCP="${QWDTT_DHCP_CONF:-/etc/config/dhcp}"
+INITD_DNSMASQ="${QWDTT_DNSMASQ_INITD:-/etc/init.d/dnsmasq}"
+INITD_MDNS="${QWDTT_MERIDIAN_DNS_INITD:-/etc/init.d/meridian-dns}"
+BACKUP="${QWDTT_DNSMASQ_BACKUP:-${QWDTT_BACKUP_DIR:-/etc/qwdtt/backup}/dnsmasq}"
+OPT="dhcp.@dnsmasq[0].confdir"
+
+# otkaz ПРИЧИНА — единственная понятная строка: на экран и в системный журнал.
+otkaz() {
+	_s="Автонастройка DNS не выполнена: $1. Напишите в поддержку."
+	echo "$_s"
+	logger -t meridian-dns-confdir "$_s" 2>/dev/null || true
+	exit 1
+}
+# zhiv — dnsmasq жив и отвечает.
+zhiv() {
+	_i=0
+	while [ "$_i" -lt "${QWDTT_DNSMASQ_WAIT:-6}" ]; do
+		if pidof dnsmasq >/dev/null 2>&1; then
+			if nslookup openwrt.org 127.0.0.1 >/dev/null 2>&1 || nslookup localhost 127.0.0.1 >/dev/null 2>&1; then return 0; fi
+		fi
+		_i=$((_i + 1)); sleep 1
+	done
+	return 1
+}
+perezapusk() {
+	"$INITD_DNSMASQ" restart >/dev/null 2>&1 || true
+	[ ! -x "$INITD_MDNS" ] || "$INITD_MDNS" restart >/dev/null 2>&1 || true
+}
+
+cur=$(uci -q get "$OPT" 2>/dev/null || true)
+if [ -n "$cur" ]; then
+	if [ "$cur" = "$CONFDIR" ]; then
+		echo "dnsmasq: confdir уже $CONFDIR — менять нечего"
+		exit 0
+	fi
+	otkaz "confdir уже задан ($cur), я его не трогаю"
+fi
+n=$(uci show dhcp 2>/dev/null | grep -c '=dnsmasq$' || true)
+[ "${n:-0}" = 1 ] || otkaz "секций dnsmasq в настройках не одна, а ${n:-0}"
+sec=$(uci show dhcp 2>/dev/null | sed -n 's/^dhcp\.\([^.=]*\)=dnsmasq$/\1/p' | head -n 1 || true)
+def="$TMPDIR_DNS/dnsmasq.$sec.d"
+if [ -n "$sec" ] && [ -d "$def" ] && [ -n "$(ls -A "$def" 2>/dev/null || true)" ]; then
+	otkaz "в каталоге dnsmasq по умолчанию уже есть чужие файлы (другая программа ведёт DNS-списки)"
+fi
+mkdir -p "$CONFDIR" 2>/dev/null
+[ -d "$CONFDIR" ] || otkaz "каталог $CONFDIR не создать"
+mkdir -p "$BACKUP" 2>/dev/null
+cp -p "$DHCP" "$BACKUP/dhcp" 2>/dev/null || true
+if ! { uci set "$OPT=$CONFDIR" >/dev/null 2>&1 && uci commit dhcp >/dev/null 2>&1; }; then
+	uci revert dhcp >/dev/null 2>&1 || true
+	[ ! -f "$BACKUP/dhcp" ] || cp -p "$BACKUP/dhcp" "$DHCP" 2>/dev/null || true
+	otkaz "uci не записал настройку (прежняя возвращена)"
+fi
+perezapusk
+if ! zhiv; then
+	# Откат: confdir был пуст — удаляем опцию; не вышло — возвращаем копию файла настроек. И перезапускаем снова.
+	{ uci -q delete "$OPT" >/dev/null 2>&1 && uci commit dhcp >/dev/null 2>&1; } || { [ ! -f "$BACKUP/dhcp" ] || cp -p "$BACKUP/dhcp" "$DHCP" 2>/dev/null || true; }
+	perezapusk
+	if zhiv; then
+		otkaz "dnsmasq не поднялся с новым каталогом (прежние настройки возвращены)"
+	fi
+	otkaz "dnsmasq не поднялся с новым каталогом, прежние настройки возвращены, но dnsmasq всё ещё не отвечает"
+fi
+echo "dnsmasq: confdir = $CONFDIR, dnsmasq и сервер DNS перезапущены"
+logger -t meridian-dns-confdir "confdir = $CONFDIR" 2>/dev/null || true
+exit 0
