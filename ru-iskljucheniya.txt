@@ -1,0 +1,22 @@
+# Домены, которые в БЕЛОМ режиме всегда идут в туннель, даже если их адреса российские.
+# По домену в строке, суффиксное совпадение (static.4pda.to покрывается строкой 4pda.to), комментарии после #.
+# Версия 2026.10.18 (+comms.ru 18.10 по слову владельца), стартовый список по оценке (не проверено в сети с белыми списками); дополняется по отчётам тестеров.
+4pda.to
+4pda.ru
+habr.com
+pikabu.ru
+vc.ru
+dtf.ru
+tjournal.ru
+overclockers.ru
+ixbt.com
+playground.ru
+stopgame.ru
+igromania.ru
+sports.ru
+championat.com
+lostfilm.tv
+kinozal.tv
+nnmclub.to
+rutor.info
+comms.ru

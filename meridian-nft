@@ -1,0 +1,45 @@
+#!/bin/sh /etc/rc.common
+# meridian-nft — грузит НАШУ таблицу inet meridian на загрузке.
+#
+# ПОЧЕМУ СВОЯ СЛУЖБА, А НЕ ФАЙЛ В /etc/nftables.d: см. шапку meridian.nft —
+# файл оттуда попадает внутрь таблицы fw4 и кладёт экран на холодной загрузке.
+# Своя таблица грузится своим механизмом, и экран клиента от нашего файла
+# больше не зависит вовсе.
+#
+# START=94 — ДО клиента (95) и держателя маршрута (96), но ПОСЛЕ firewall (19).
+# Порядок важен: набор и пометка должны стоять раньше, чем появится трафик.
+
+USE_PROCD=1
+START=94
+STOP=11
+
+TABLA=/etc/qwdtt/meridian.nft
+
+start_service() {
+    [ -f "$TABLA" ] || { echo "нет $TABLA"; return 1; }
+    if ! nft -c -f "$TABLA"; then
+        echo "ОТКАЗ: $TABLA не проходит проверку nft -c, не гружу"
+        return 1
+    fi
+    nft -f "$TABLA"
+    RC=$?
+    if [ "$RC" != "0" ]; then
+        echo "ОТКАЗ: nft -f вернул $RC"
+        logger -t meridian-nft "таблица не загружена, nft -f код $RC"
+        return 1
+    fi
+    # СВЕРКА СОДЕРЖИМЫМ, а не кодом возврата: «загружено» — это «перечитали
+    # и увидели то, что грузили».
+    N=$(nft list table inet meridian 2>/dev/null | grep -c 'meridian_mark')
+    if [ "$N" = "0" ]; then
+        echo "ОТКАЗ: таблица загружена, а правила пометки в ней нет"
+        logger -t meridian-nft "правила пометки нет после загрузки"
+        return 1
+    fi
+    logger -t meridian-nft "таблица inet meridian загружена, правил пометки $N"
+}
+
+stop_service() {
+    nft delete table inet meridian 2>/dev/null
+    logger -t meridian-nft "таблица inet meridian снята"
+}
