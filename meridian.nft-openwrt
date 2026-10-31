@@ -1,0 +1,75 @@
+#!/usr/sbin/nft -f
+# meridian.nft — СВОЯ таблица inet meridian: наборы. Правила пометки
+# (mark_prerouting) сюда НЕ входят с 27.09.2026 — их одним источником
+# правды собирает meridian-mode (см. этот же каталог), чтобы не держать
+# две копии одной и той же сборки правил (загрузка при старте и ручное
+# переключение режима звали бы разные версии одного и того же кода).
+#
+# ПОЧЕМУ СВОЯ ТАБЛИЦА, А НЕ ФАЙЛ В /etc/nftables.d — см. историю в
+# качестве этого же файла до 27.09.2026 (в git/бэкапе): холодная загрузка
+# роняет весь экран, если декларация цепочки попадает внутрь таблицы fw4
+# раньше, чем fw4 объявит её базовой (19.08, 10.09).
+#
+# В БАЗОВЫЕ ЦЕПОЧКИ fw4 НЕ ДОПИСЫВАТЬ НИКОГДА — своя таблица не спорит с
+# чужой на одном хуке, обе проходятся независимо.
+#
+# НАБОРЫ ЗДЕСЬ ТОЛЬКО ОБЪЯВЛЯЮТСЯ, НЕ ЧИСТЯТСЯ (ни flush, ни delete).
+# meridian_dst4/meridian_dns_direct4 наполняет dnsmasq ПО МЕРЕ DNS-запросов:
+# очистка при перезагрузке этого файла оставила бы чёрный список пустым, пока
+# устройства не переспросят DNS (их кэш живёт минуты-часы). Так было в версии
+# 27.09 утром — вернул правило исходного файла: «набор чистится только
+# flush set/delete set, и ни того, ни другого здесь нет и быть не должно».
+# Объявление существующего набора ничего в нём не меняет. keep4 пересобирает
+# meridian-mode сам, атомарно, каждым вызовом.
+
+table inet meridian {
+    set meridian_dst4 {
+        type ipv4_addr; flags interval; auto-merge
+        comment "чёрный режим: адреса в туннель; наполняет dnsmasq через nftset="
+    }
+}
+
+table inet meridian {
+    set meridian_direct4 {
+        type ipv4_addr; flags interval; auto-merge
+        comment "белый режим: напрямую по решению человека (панель/CLI)"
+    }
+}
+
+table inet meridian {
+    set meridian_direct_dns4 {
+        type ipv4_addr; flags interval; auto-merge
+        comment "белый: напрямую по домену; наполняет meridian-dns"
+    }
+}
+
+table inet meridian {
+    set meridian_resolvers4 {
+        type ipv4_addr; flags interval; auto-merge
+        comment "белый режим: В ТУННЕЛЬ ВСЕГДА, перевес над keep4/direct4/dns_direct4"
+    }
+}
+
+table inet meridian {
+    set meridian_keep4 {
+        type ipv4_addr; flags interval; auto-merge
+        comment "белый режим: обязано остаться напрямую — наполняет meridian-mode"
+    }
+}
+
+table inet meridian {
+    set meridian_ru4 {
+        type ipv4_addr; flags interval; auto-merge
+        comment "белый: RU-адреса напрямую; грузит meridian-mode ru-load"
+    }
+}
+
+table inet meridian {
+    chain mark_prerouting {
+        type filter hook prerouting priority mangle; policy accept;
+    }
+}
+flush chain inet meridian mark_prerouting
+# Содержимое mark_prerouting здесь НЕ ставится — см. шапку файла. Init-
+# скрипт зовёт `meridian-mode $(cat .state || echo black)` сразу после
+# загрузки этого файла.

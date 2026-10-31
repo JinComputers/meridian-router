@@ -1,0 +1,11 @@
+#!/bin/sh
+# /etc/hotplug.d/iface/90-meridian-out — подъём туннеля: переставить хост-маршруты слоя out.
+# (1114) Интерфейс пересоздали — маршруты metric 5 на резолверы пропали.
+[ "$ACTION" = ifup ] || exit 0
+case "$INTERFACE:$DEVICE" in
+	meridian:*|meridianraw:*|wdttraw:*|*:meridian) : ;;
+	*) exit 0 ;;
+esac
+[ -x /usr/sbin/meridian-mode ] || exit 0
+( sleep 1; /usr/sbin/meridian-mode out ensure ) >/dev/null 2>&1 &
+exit 0
