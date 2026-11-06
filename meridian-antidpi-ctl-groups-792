@@ -1,0 +1,222 @@
+#!/bin/sh
+# meridian-antidpi-ctl — управление анти-DPI для панели (договор с Котом 2).
+#
+#   status [--machine]      состояние (key=value при --machine)
+#   on | off                весь анти-DPI: служба + автозапуск
+#   strategy list           строка на группу: группа=N (N = 0..3)
+#   strategy <группа> <0|1|2|3>  стратегия группы: 0 выкл, 1 фейк+дробление,
+#                           2 фейк-ACK+дробление, 3 подмена имени хоста
+#   group <имя> on|off      одна группа: youtube | discord | cloudflare | other | social
+#
+# Коды: 0 — сделано; 1 — отказ (текст отказа одной строкой в stderr,
+# начинается с «ОТКАЗ:»); 2 — неверные аргументы.
+#
+# Белый режим: движок сам встаёт на паузу (paused_white=1 в status), читая
+# /etc/qwdtt/meridian-mode.state раз в 2 с; enabled/running при этом не меняются.
+#
+# Окно подтверждения НЕ нужно: очередь стоит с bypass и касается только
+# трафика из домашней сети на внешние адреса. Упавший движок = трафик идёт
+# как без анти-DPI; к панели (192.168.x -> роутер) правила не относятся вовсе.
+
+INIT=${MERIDIAN_ANTIDPI_INIT:-/etc/init.d/meridian-antidpi}
+GROUPSF=${MERIDIAN_ANTIDPI_GROUPS:-/etc/meridian-antidpi/groups}
+STRATEGY=${MERIDIAN_ANTIDPI_STRATEGY:-/etc/meridian-antidpi/strategy}
+STATUS=${MERIDIAN_ANTIDPI_STATUS:-/var/run/meridian-antidpi.status}
+LOCK=${MERIDIAN_ANTIDPI_LOCK:-/var/lock/meridian-antidpi-ctl.lock}
+ALL="youtube discord cloudflare other social"
+AUTOPAUSE=${MERIDIAN_ANTIDPI_AUTOPAUSE:-$(dirname "$GROUPSF")/all-groups-paused}
+
+otkaz() { echo "ОТКАЗ: $*" >&2; exit 1; }
+
+with_lock() {
+	mkdir -p "$(dirname "$LOCK")" 2>/dev/null
+	exec 9>"$LOCK"
+	_i=0
+	# busybox flock без -w: ждём сами, до 15 с
+	until flock -n 9; do
+		_i=$((_i + 1))
+		[ "$_i" -ge 15 ] && otkaz "занято другой командой (замок $LOCK)"
+		sleep 1
+	done
+}
+
+group_val() { # $1 — группа; нет строки/файла = 1
+	_v=$(grep -E "^$1=" "$GROUPSF" 2>/dev/null | tail -1 | cut -d= -f2)
+	case "$_v" in 0|off) echo 0 ;; *) echo 1 ;; esac
+}
+
+all_groups_off() { for _g in $ALL; do [ "$(group_val "$_g")" = 0 ] || return 1; done; return 0; }
+
+def_strat() { case "$1" in cloudflare|social) echo 1 ;; *) echo 3 ;; esac; } # = defaultStrategy движка (strategy.go)
+
+strat_val() { # нет файла/строки/порча = умолчание движка
+	_v=$(grep -E "^$1=[0-4]$" "$STRATEGY" 2>/dev/null | tail -1 | cut -d= -f2)
+	[ -n "$_v" ] && echo "$_v" || def_strat "$1"
+}
+
+running() {
+	pidof meridian-antidpi >/dev/null 2>&1
+}
+
+cmd_status() {
+	if running; then _r=1; else _r=0; fi
+	if [ -x "$INIT" ] && "$INIT" enabled 2>/dev/null; then _e=1; else _e=0; fi
+	if [ "$1" = "--machine" ]; then
+		echo "feature_youtube_ttk=1"
+		echo "installed=$([ -x /usr/sbin/meridian-antidpi ] && echo 1 || echo 0)"
+		echo "enabled=$_e"
+		echo "running=$_r"
+        [ -f "$AUTOPAUSE" ] && echo "paused_groups=1" || echo "paused_groups=0"
+		for g in $ALL; do echo "group_$g=$(group_val "$g")"; done
+		for g in $ALL; do echo "strategy_$g=$(strat_val "$g")"; done
+		# счётчики — из файла движка (обновляется раз в 10 с)
+		[ "$_r" = 1 ] && grep -E '^(paused_white|packets|tls_handled|tls_group_off|quic_handled|quic_dropped|udp_handled)=' "$STATUS" 2>/dev/null
+		return 0
+	fi
+	echo "анти-DPI: $([ "$_r" = 1 ] && echo работает || echo остановлен), автозапуск $([ "$_e" = 1 ] && echo вкл || echo выкл)"
+	for g in $ALL; do echo "  $g: $([ "$(group_val "$g")" = 1 ] && echo вкл || echo выкл), стратегия $(strat_val "$g")"; done
+}
+
+cmd_onoff() {
+	[ -x "$INIT" ] || otkaz "анти-DPI не установлен (нет $INIT)"
+	with_lock
+	if [ "$1" = on ]; then
+        if all_groups_off; then
+            "$INIT" enable && "$INIT" start || otkaz "не удалось применить паузу"
+            echo "все группы выключены — анти-DPI на паузе"; return 0
+        fi
+		"$INIT" enable && "$INIT" start || otkaz "служба не запустилась"
+		_i=0
+		while ! running; do
+			_i=$((_i + 1)); [ "$_i" -ge 10 ] && otkaz "движок не поднялся за 5 с (logread -e meridian-antidpi)"
+			sleep 0.5 2>/dev/null || sleep 1
+		done
+		echo "анти-DPI включён"
+	else
+		# АВТОЗАПУСК НЕ СНИМАЕМ (владелец 27.09: движок включён всегда, панель
+		# общий выключатель убрала — «выкл всех групп» = пропуск трафика, а не
+		# остановка службы). `off` только останавливает сейчас; после
+		# перезагрузки движок поднимется сам. Полностью убрать — блоком отката.
+		"$INIT" stop
+        rm -f "$AUTOPAUSE"
+		echo "анти-DPI остановлен (автозапуск сохранён — вернётся после перезагрузки)"
+	fi
+}
+
+cmd_group() {
+ case " $ALL " in *" $1 "*) ;; *) echo "неизвестная группа «$1»; можно: $ALL" >&2; exit 2 ;; esac
+ case "$2" in on) _v=1 ;; off) _v=0 ;; *) echo "ждали on или off" >&2; exit 2 ;; esac
+ with_lock
+ mkdir -p "$(dirname "$GROUPSF")" || otkaz "нет каталога для $GROUPSF"
+ _tmp="${GROUPSF}.tmp.$$"; _backup="${GROUPSF}.before.$$"; _existed=0; _wasrunning=0; _hadpause=0
+ [ -f "$AUTOPAUSE" ] && _hadpause=1
+ running && _wasrunning=1
+ if [ -f "$GROUPSF" ]; then cp -p "$GROUPSF" "$_backup" || otkaz "не сохранить группы"; _existed=1; fi
+ {
+  echo "# meridian-antidpi: включённость групп (1/0). Правит meridian-antidpi-ctl."
+  for g in $ALL; do
+   if [ "$g" = "$1" ]; then echo "$g=$_v"; else echo "$g=$(group_val "$g")"; fi
+  done
+ } > "$_tmp" || otkaz "не записать $GROUPSF"
+ mv -f "$_tmp" "$GROUPSF" || otkaz "не заменить $GROUPSF"
+ _problem=""
+ if all_groups_off; then
+  if [ "$_wasrunning" = 1 ]; then
+   (umask 077; : > "$AUTOPAUSE") || _problem="не сохранить состояние паузы"
+  fi
+  _tables=$(nft list tables 2>/dev/null) || _problem="не проверить таблицы nft"
+  if [ -z "$_problem" ] && { [ "$_wasrunning" = 1 ] || echo "$_tables" | grep -q '^table inet meridian_antidpi$'; }; then
+    "$INIT" stop >/dev/null 2>&1 || _problem="не остановить движок"
+    _i=0; while running && [ "$_i" -lt 10 ]; do sleep 1; _i=$((_i + 1)); done
+    running && _problem="движок не остановился"
+    _tables=$(nft list tables 2>/dev/null) || _problem="не проверить таблицы nft"
+    echo "$_tables" | grep -q '^table inet meridian_antidpi$' && _problem="таблица anti-DPI не снята"
+  fi
+ elif [ "$_hadpause" = 1 ] && [ "$_wasrunning" = 0 ]; then
+  "$INIT" start >/dev/null 2>&1 || _problem="не запустить движок"
+  _i=0; while ! running && [ "$_i" -lt 10 ]; do sleep 1; _i=$((_i + 1)); done
+  running || _problem="движок не запустился"
+  [ -n "$_problem" ] || rm -f "$AUTOPAUSE"
+ elif [ "$_wasrunning" = 1 ]; then
+  "$INIT" reload >/dev/null 2>&1 || _problem="движок не перечитал группы"
+ fi
+ if [ -n "$_problem" ]; then
+  if [ "$_existed" = 1 ]; then mv -f "$_backup" "$GROUPSF"; else rm -f "$GROUPSF"; fi
+  if [ "$_hadpause" = 1 ]; then (umask 077; : > "$AUTOPAUSE"); else rm -f "$AUTOPAUSE"; fi
+  if [ "$_wasrunning" = 1 ]; then
+   if running; then "$INIT" reload >/dev/null 2>&1 || :; else "$INIT" start >/dev/null 2>&1 || :; fi
+  else
+   if running; then "$INIT" stop >/dev/null 2>&1 || :; fi
+  fi
+  otkaz "$_problem; прежнее состояние групп восстановлено"
+ fi
+ rm -f "$_backup"
+ echo "группа $1: $([ "$_v" = 1 ] && echo вкл || echo выкл)"
+}
+
+cmd_strategy() {
+	if [ "$1" = list ]; then
+		[ $# -eq 1 ] || { echo "использование: $0 strategy list" >&2; exit 2; }
+		for g in $ALL; do echo "$g=$(strat_val "$g")"; done
+		return 0
+	fi
+	[ $# -eq 2 ] || { echo "использование: $0 strategy list | strategy <$ALL> <0|1|2|3>" >&2; exit 2; }
+	case " $ALL " in *" $1 "*) ;; *) echo "неизвестная группа «$1»; можно: $ALL" >&2; exit 2 ;; esac
+	case "$2" in 0|1|2|3) ;; *) echo "стратегия «$2» не бывает; можно: 0 (выкл), 1, 2, 3" >&2; exit 2 ;; esac
+	with_lock
+	if [ -f "$STRATEGY" ] && [ "$(strat_val "$1")" = "$2" ] && grep -qE "^$1=$2$" "$STRATEGY"; then
+		echo "стратегия $1: $2 (без изменений)"; return 0
+	fi
+	mkdir -p "$(dirname "$STRATEGY")" || otkaz "нет каталога для $STRATEGY"
+	_tmp="$STRATEGY.tmp.$$"
+	{
+		echo "# meridian-antidpi: стратегия по группам (0 выкл, 1 фейк+дробление, 2 фейк-ACK+дробление, 3 подмена имени хоста). Правит meridian-antidpi-ctl."
+		for g in $ALL; do
+			if [ "$g" = "$1" ]; then echo "$g=$2"; else echo "$g=$(strat_val "$g")"; fi
+		done
+	} > "$_tmp" || { rm -f "$_tmp"; otkaz "не записать $STRATEGY"; }
+	mv -f "$_tmp" "$STRATEGY" || { rm -f "$_tmp"; otkaz "не заменить $STRATEGY"; }
+	running && { "$INIT" reload >/dev/null 2>&1 || otkaz "стратегия записана, но движок не перечитал (reload)"; }
+	echo "стратегия $1: $2"
+}
+
+cmd_youtube_ttk() {
+  [ "$1" = 1 ] || [ "$1" = 2 ] || { echo "неверная стратегия" >&2; exit 2; }
+  with_lock
+  _f=${MERIDIAN_ANTIDPI_STRATEGY:-/etc/meridian-antidpi/strategy}
+  _prev="${_f}.ttk-prev"; _tmp="${_f}.tmp.$$"; _backup="${_f}.rollback.$$"
+  mkdir -p "$(dirname "$_f")" || otkaz "нет каталога"
+  _current=$(grep -E '^youtube=[0-4]$' "$_f" 2>/dev/null | tail -1 | cut -d= -f2)
+  [ -n "$_current" ] || _current=3
+  if [ "$1" = 2 ]; then
+    if [ "$_current" != 4 ]; then
+      (umask 077; printf '%s\n' "$_current" > "${_prev}.tmp.$$" && mv -f "${_prev}.tmp.$$" "$_prev") || otkaz "не сохранена прежняя стратегия"
+    fi
+    _new=4
+  else
+    if [ "$_current" != 4 ]; then echo "Стратегия YouTube: 1"; return 0; fi
+    _new=$(cat "$_prev" 2>/dev/null)
+    case "$_new" in 0|1|2|3) ;; *) otkaz "нет сохранённой прежней стратегии" ;; esac
+  fi
+  _existed=0
+  if [ -f "$_f" ]; then cp -p "$_f" "$_backup" || otkaz "нет копии для отката"; _existed=1; awk '!/^[[:space:]]*youtube[[:space:]]*=/' "$_f" > "$_tmp" || otkaz "не прочитать файл"; else : > "$_tmp"; fi
+  printf 'youtube=%s\n' "$_new" >> "$_tmp" || otkaz "не записать стратегию"
+  mv -f "$_tmp" "$_f" || otkaz "не заменить стратегию"
+  if running && ! "$INIT" reload >/dev/null 2>&1; then
+    if [ "$_existed" = 1 ]; then mv -f "$_backup" "$_f"; else rm -f "$_f"; fi
+    "$INIT" reload >/dev/null 2>&1 || true
+    otkaz "не удалось применить стратегию, прежняя настройка восстановлена"
+  fi
+  rm -f "$_backup"
+  echo "Стратегия YouTube: $1"
+}
+
+
+case "$1" in
+	youtube-ttk) [ $# -eq 2 ] || exit 2; cmd_youtube_ttk "$2" ;;
+	strategy) shift; cmd_strategy "$@" ;;
+	status) cmd_status "$2" ;;
+	on|off) [ $# -eq 1 ] || { echo "лишние аргументы" >&2; exit 2; }; cmd_onoff "$1" ;;
+	group) [ $# -eq 3 ] || { echo "использование: $0 group <имя> on|off" >&2; exit 2; }; cmd_group "$2" "$3" ;;
+	*) echo "использование: $0 status [--machine] | on | off | group <$ALL> on|off | strategy list | strategy <группа> <0|1|2|3>" >&2; exit 2 ;;
+esac

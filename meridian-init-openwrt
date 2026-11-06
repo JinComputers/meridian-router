@@ -1,0 +1,70 @@
+#!/bin/sh /etc/rc.common
+# qwdtt — клиент Меридиана на OpenWrt. procd, поднимается на загрузке.
+#
+# Запуск идёт через /usr/sbin/meridian-run (прежнее имя qwdtt-run), а не напрямую: у procd нет параметра
+# для stdin, а клиент стандартный ввод ЧИТАЕТ и исполняет (STOP гасит его).
+# Запускатель делает exec с < /dev/null и чистит значения перед argv.
+
+USE_PROCD=1
+START=95
+STOP=10
+
+CONF=/etc/qwdtt/qwdtt.conf
+RUN=/usr/sbin/meridian-run
+# Прежнее имя запускателя: на роутере, где поставлен только он (обновили автозапуск отдельно от установщика), работаем через него.
+[ -x "$RUN" ] || RUN=/usr/sbin/qwdtt-run
+
+start_service() {
+    [ -f "$CONF" ] || { echo "нет $CONF"; return 1; }
+    [ -x "$RUN" ] || { echo "нет $RUN"; return 1; }
+    # ПРАВА НА КОНФИГ С ПАРОЛЕМ: чиним и говорим вслух, молча нельзя.
+    PRAVA=$(ls -l "$CONF" 2>/dev/null | cut -c1-10)
+    case "$PRAVA" in
+        -rw-------) : ;;
+        *)
+            logger -t qwdtt "конфиг $CONF имел права $PRAVA — ставлю 0600"
+            echo "конфиг $CONF имел права $PRAVA — ставлю 0600"
+            chmod 600 "$CONF" 2>/dev/null
+            PRAVA2=$(ls -l "$CONF" 2>/dev/null | cut -c1-10)
+            case "$PRAVA2" in
+                -rw-------) : ;;
+                *)
+                    [ -n "$PRAVA2" ] || PRAVA2="не прочитать"
+                    echo "ОТКАЗ: права на $CONF остались $PRAVA2"
+                    return 1
+                    ;;
+            esac
+            ;;
+    esac
+
+    # /dev/net/tun: без него клиент по кругу падает на CreateTUN. Модуль мог не
+    # загрузиться на старте, а узел в /dev (tmpfs) не переживает перезагрузку.
+    if [ ! -c /dev/net/tun ]; then
+        grep -q '^tun ' /proc/modules 2>/dev/null || [ -e /sys/class/misc/tun ] || modprobe tun 2>/dev/null || insmod tun 2>/dev/null
+        if [ ! -c /dev/net/tun ] && { grep -q '^tun ' /proc/modules 2>/dev/null || [ -e /sys/class/misc/tun ]; }; then
+            mkdir -p /dev/net && mknod /dev/net/tun c 10 200 2>/dev/null
+        fi
+        if [ -c /dev/net/tun ]; then
+            logger -t qwdtt "/dev/net/tun не было — модуль tun загружен, узел создан"
+        else
+            logger -t qwdtt "ОТКАЗ запуска: нет /dev/net/tun и модуль tun не загружается. Поставьте: opkg update && opkg install kmod-tun"
+            echo "ОТКАЗ запуска: нет /dev/net/tun и модуль tun не загружается. Поставьте: opkg update && opkg install kmod-tun"
+            return 1
+        fi
+    fi
+
+    procd_open_instance qwdtt
+    procd_set_param command "$RUN"
+    procd_set_param respawn 3600 5 0
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    procd_close_instance
+}
+
+stop_service() {
+    return 0
+}
+
+service_triggers() {
+    procd_add_reload_trigger "qwdtt"
+}

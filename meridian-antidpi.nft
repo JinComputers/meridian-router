@@ -1,0 +1,33 @@
+#!/usr/sbin/nft -f
+# meridian-antidpi на OpenWrt — СВОЯ таблица, fw4 и iptables-обвязку nfqws2 не трогает.
+# Загрузка одной транзакцией (nft -f): старая таблица снимается и ставится новая.
+#
+# Решения (27.09.2026):
+# - очередь 301, НЕ 300: 300 занята обвязкой nfqws2, пока тот не удалён; две
+#   программы на одной очереди — вторая просто не откроет её.
+# - `bypass`: движок упал или не запущен — пакеты идут дальше, а не встают.
+# - только трафик ИЗ ДОМАШНЕЙ СЕТИ (iifname br-lan): свои соединения роутера,
+#   в т.ч. UDP туннеля Меридиана на 56000/56004 (попадает в 49152-65535!), мимо.
+# - в туннель (oifname meridian) не лезем: там DPI провайдера и так не видит.
+# - бит 0x40000000 — свои пакеты движка (SO_MARK), мимо очереди, как у nfqws2.
+# - порты и connbytes 1-15 — один в один как в рабочем nfqws2.conf владельца.
+
+table inet meridian_antidpi
+delete table inet meridian_antidpi
+
+table inet meridian_antidpi {
+	chain post {
+		type filter hook postrouting priority mangle; policy accept;
+		meta mark & 0x40000000 == 0x40000000 counter return comment "свои пакеты движка"
+		iifname != "br-lan" return
+		oifname { "br-lan", "lo", "meridian" } return
+		meta nfproto ipv4 tcp dport { 80, 443, 1984, 2053, 2083, 2087, 2096, 5222, 8443 } ct original packets 1-15 counter queue num 301 bypass comment "antidpi_tcp"
+		meta nfproto ipv4 udp dport { 443, 590-600, 1400, 3478-3481, 5349, 19294-19344, 49152-65535 } ct original packets 1-15 counter queue num 301 bypass comment "antidpi_udp"
+	}
+
+	chain nat_post {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname { "br-lan", "lo", "meridian" } return
+		meta nfproto ipv4 meta l4proto udp meta mark & 0x40000000 == 0x40000000 counter masquerade comment "antidpi_fake_udp_nat"
+	}
+}
