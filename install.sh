@@ -1016,6 +1016,11 @@ owrt_antidpi_engine_compatible() {
 	esac
 }
 
+# Strict three-component numeric comparison; refuse malformed versions before calling.
+owrt_antidpi_newer() {
+	awk -v a="$1" -v b="$2" 'BEGIN { split(a,x,"."); split(b,y,"."); for (i=1;i<=3;i++) { if ((x[i]+0)>(y[i]+0)) exit 0; if ((x[i]+0)<(y[i]+0)) exit 1 } exit 1 }'
+}
+
 ustanovit_antidpi_openwrt() {
 	say "=== Анти-DPI ==="
 	_a_init="$INITD_OPENWRT_DIR/meridian-antidpi"
@@ -1050,16 +1055,36 @@ ustanovit_antidpi_openwrt() {
 	[ -x "$_a_init" ] && { _a_prior_init=1; "$_a_init" enabled >/dev/null 2>&1 && _a_prior_enabled=1; }
 	pidof meridian-antidpi >/dev/null 2>&1 && _a_prior_running=1
 	[ -f "$_a_marker" ] && _a_prior_marker=1
-	# Preserve an already installed executable, including newer private builds.
-	# OpenWrt's verified OTA handles upgrades. Never silently downgrade or replace
-	# an unknown/broken installed file from the general installer.
-	_a_keep_engine=0
-	if [ -e "$_a_engine" ]; then
-		[ -x "$_a_engine" ] || { say "  анти-DPI: существующий двигатель не запускается — ничего не заменяю"; return 0; }
-		_a_ver=$("$_a_engine" -version 2>/dev/null) || { say "  анти-DPI: не удалось проверить установленный двигатель — ничего не заменяю"; return 0; }
-		echo "$_a_ver" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$' || { say "  анти-DPI: неизвестная версия двигателя — ничего не заменяю"; return 0; }
-		owrt_antidpi_engine_compatible "$_a_engine" || { say "  анти-DPI: совместимость двигателя со стратегией 2 не подтверждена — файлы сохранены, ожидается штатное обновление двигателя"; return 0; }
+	# Never replace an unknown executable. Known legacy 2.3.4 builds may be
+	# upgraded, but controls cannot be paired with them if the upgrade fails.
+	_a_keep_engine=0; _a_update_engine=0; _a_stage=""
+	if [ -e "$_a_engine" ] || [ -L "$_a_engine" ]; then
+		[ -f "$_a_engine" ] && [ ! -L "$_a_engine" ] && [ -x "$_a_engine" ] || { say "  ВНИМАНИЕ: нестандартный двигатель anti-DPI сохранён"; return 0; }
+		_a_ver=$("$_a_engine" -version 2>/dev/null) || { say "  ВНИМАНИЕ: не удалось проверить двигатель anti-DPI"; return 0; }
+		echo "$_a_ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { say "  ВНИМАНИЕ: неизвестная версия двигателя anti-DPI"; return 0; }
+		_a_legacy=0
+		if ! owrt_antidpi_engine_compatible "$_a_engine"; then
+			_a_old_sha=$(owrt_sha "$_a_engine")
+			case "$_a_old_sha:$_a_ver" in
+				a71ad5c4aef1973879d525c415940f2a92af04a1c972e11f2961e466c80cff48:2.3.4|3639ef684de8d57a4bb0f6462828a4f1962c0bfb759182f3ce575c1cc77b95da:2.3.4) _a_legacy=1;;
+				*) say "  ВНИМАНИЕ: неизвестный двигатель anti-DPI сохранён"; return 0;;
+			esac
+		fi
 		_a_keep_engine=1
+		_a_stage="$INSTALL_DIR/.antidpi-engine-candidate.$$"
+		if fetch_to_target "$(dist_name "meridian-antidpi-$ARCH")" "$_a_stage" 500 elf && [ "${FETCH_VERIFIED:-0}" = 1 ] && owrt_antidpi_engine_compatible "$_a_stage"; then
+			_a_candidate_ver=$("$_a_stage" -version 2>/dev/null) || _a_candidate_ver=""
+			if echo "$_a_candidate_ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' && owrt_antidpi_newer "$_a_candidate_ver" "$_a_ver"; then
+				_a_update_engine=1
+			else rm -f "$_a_stage"; _a_stage=""; fi
+		else
+			rm -f "$_a_stage"; _a_stage=""
+			say "  ВНИМАНИЕ: свежий двигатель anti-DPI не прошёл проверку; прежний сохранён"
+		fi
+		if [ "$_a_legacy" = 1 ] && [ "$_a_update_engine" = 0 ]; then
+			say "  ВНИМАНИЕ: старый двигатель anti-DPI не обновлён, контроллер сохранён"
+			return 0
+		fi
 	fi
 	# If stopped with enabled groups and no automatic-pause marker, respect the
 	# existing stopped state (manual stop or process crash); do not start it.
@@ -1069,6 +1094,16 @@ ustanovit_antidpi_openwrt() {
 	fi
 	mkdir -p "$ANTIDPI_DIR" || die "не создать $ANTIDPI_DIR"
 	_a_preflight_why=""
+	if [ "$_a_update_engine" = 1 ]; then
+		owrt_otlozhit "$_a_engine"
+		if mv -f "$_a_stage" "$_a_engine"; then
+			chmod 755 "$_a_engine" 2>/dev/null || _a_preflight_why="не сделать новый двигатель исполняемым"
+			say "  двигатель anti-DPI обновлён: $_a_ver → $_a_candidate_ver"
+		else
+			rm -f "$_a_stage"
+			_a_preflight_why="не заменить двигатель anti-DPI"
+		fi
+	fi
 	if [ "$_a_keep_engine" = 0 ]; then
 		install_openwrt_part "$(dist_name "meridian-antidpi-$ARCH")" "$_a_engine" 755 elf
 		_a_new_ver=$("$_a_engine" -version 2>/dev/null) || _a_preflight_why="новый двигатель не запускается"
@@ -1079,7 +1114,7 @@ ustanovit_antidpi_openwrt() {
 			owrt_antidpi_engine_compatible "$_a_engine" || _a_preflight_why="совместимость нового двигателя со стратегией 2 не подтверждена"
 		fi
 	else
-		say "  существующий двигатель $_a_ver сохранён; его обновляет штатный механизм"
+		[ "$_a_update_engine" = 1 ] || say "  существующий двигатель $_a_ver сохранён"
 	fi
 	# Existing nft configuration may contain user-specific policy; preserve it.
 	if [ -e "$ANTIDPI_DIR/antidpi.nft" ] || [ -L "$ANTIDPI_DIR/antidpi.nft" ]; then
