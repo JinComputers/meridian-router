@@ -2328,12 +2328,12 @@ probe_form() { # probe_form "форма" "база" — скачать проб�
 	_out="$RUN_DIR/.dlprobe.$$"
 	rm -f "$_out" "$_out.err" 2>/dev/null || true
 	# Проба — короткая (15 с), а не как сама загрузка: недоступный источник отсеивается за секунды.
-	_pform="$1"; _plim=""
+	_pform="$1"
 	case "$1" in
-		"wget -q -O") _plim="run_limited 15" ;;
-		"timeout 600 wget -q -O") _pform="timeout 15 wget -q -O" ;;
+		"wget -q -O") : ;;
+		"timeout 600 wget -q -O") _pform="wget -q -O" ;;
 	esac
-	if $_plim $_pform "$_out" "$2/VERSION_CLIENT" >/dev/null 2>"$_out.err"; then
+	if run_limited 15 $_pform "$_out" "$2/VERSION_CLIENT" >/dev/null 2>"$_out.err"; then
 		if [ -s "$_out" ]; then
 			rm -f "$_out" "$_out.err" 2>/dev/null || true
 			return 0
@@ -2359,6 +2359,7 @@ try_form() { # try_form "форма" — годится ли она хоть с 
 	# здесь один раз, и дальше установщик ходит только к живым — иначе каждый файл заново ждал бы мёртвый адрес.
 	_tf_good=""; _tf_first=""; _tf_mertv=""
 	for _b in $BASE_URLS; do
+		etap "Проверяю источник: $(imya_istochnika "$_b") (около 15 секунд)"
 		if probe_form "$1" "$_b"; then
 			_tf_good="${_tf_good:+$_tf_good }$_b"
 			[ -n "$_tf_first" ] || _tf_first="$_b"
