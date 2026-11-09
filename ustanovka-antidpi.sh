@@ -324,6 +324,7 @@ fi
 skachat_baza SHA256SUMS "$T/SHA256SUMS" || otkaz "не скачать SHA256SUMS — сверять нечем"
 # Никогда не откатывать более новый локальный двигатель (включая частную проверку).
 PRESERVE_ENGINE=0
+PLAY_ENGINE_SHA=""
 skachat_baza VERSION_ANTIDPI "$T/remote-version" || otkaz "не получить версию anti-DPI"
 _want_ver=$(manifest_sha VERSION_ANTIDPI)
 [ -n "$_want_ver" ] && [ "$(sha "$T/remote-version")" = "$_want_ver" ] || otkaz "не проверить версию anti-DPI"
@@ -336,6 +337,15 @@ if [ -x "$ENG" ]; then
   }')
   [ "$_compare" != invalid ] || otkaz "несопоставимые версии anti-DPI"
   [ "$_compare" != newer ] || { PRESERVE_ENGINE=1; say "движок $_local_ver новее раздачи $_remote_ver — сохраняю"; }
+  # HERO: проверенный исправленный Play-кандидат имеет ту же 2.4.3, что и
+  # штатная раздача. Только точная сумма и архитектура; новая версия раздачи
+  # по-прежнему должна обновляться обычным путём.
+  if [ "$_compare" = equal ] && [ "$ARCH" = mipsle ] && [ "$_local_ver" = 2.4.3 ] && \
+     [ "$(sha "$ENG")" = a6b02148e3fe445cbc1c21988f05632c35f27cac0134c850e4313192bd33a79a ]; then
+    PRESERVE_ENGINE=1
+    PLAY_ENGINE_SHA=a6b02148e3fe445cbc1c21988f05632c35f27cac0134c850e4313192bd33a79a
+    say "сохраняю проверенный двигатель 2.4.3 с исправлением Google Play"
+  fi
 fi
 all_groups_disabled() {
   _groups="$OPT/etc/meridian-antidpi/groups"
@@ -407,8 +417,10 @@ if [ -f "$HOOK" ]; then
   [ "$(sha "$HOOK")" = "$(sha "$T/hook")" ] || otkaz "неизвестный крючок anti-DPI — не заменяю"
 fi
 if [ "$PRESERVE_ENGINE" = 1 ]; then
+  [ -z "$PLAY_ENGINE_SHA" ] || [ "$(sha "$ENG")" = "$PLAY_ENGINE_SHA" ] || otkaz "двигатель изменился при обновлении — сохраняю установленное"
   cp -p "$ENG" "$T/eng" || otkaz "не сохранить более новый двигатель"
   [ "$(sha "$T/eng")" = "$(sha "$ENG")" ] || otkaz "копия двигателя не совпала"
+  [ -z "$PLAY_ENGINE_SHA" ] || [ "$(sha "$T/eng")" = "$PLAY_ENGINE_SHA" ] || otkaz "сумма Play-двигателя изменилась — сохраняю установленное"
 fi
 head -c 4 "$T/eng" | grep -q ELF || otkaz "движок из раздачи не ELF"
 chmod 755 "$T/eng" || otkaz "не выставить права двигателя"
