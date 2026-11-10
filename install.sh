@@ -307,6 +307,27 @@ else
 	RUN_DIR="${QWDTT_RUN_DIR:-/tmp/qwdtt-run}"
 	BACKUP_DIR="${QWDTT_BACKUP_DIR:-/opt/var/backup/qwdtt}"
 fi
+# Определяем до создания файлов: переустановка никогда не изменяет маршруты.
+HERO_SEED_FRESH=1
+for _hf in "$CONF_DIR/qwdtt.conf" "$CONF_DIR/meridian.conf" "$CONF_DIR/meridian-dns.yaml" "$CONF_DIR/meridian-gruppy.json" "$CONF_DIR/.spisok-po-umolchaniyu" "$CONF_DIR/.telegram-po-umolchaniyu" "$CONF_DIR/meridian-mode.state"; do
+    [ ! -e "$_hf" ] || HERO_SEED_FRESH=0
+done
+if [ "${PLATFORM:-}" = openwrt ]; then
+ for _hd in /etc/meridian /etc/qwdtt; do
+  for _hn in meridian.conf qwdtt.conf meridian-dns.yaml meridian-gruppy.json meridian-route.list; do [ ! -e "$_hd/$_hn" ] || HERO_SEED_FRESH=0; done
+ done
+else
+ for _hd in /opt/etc/meridian /opt/etc/qwdtt; do
+  for _hn in meridian.conf qwdtt.conf meridian-dns.yaml meridian-gruppy.json meridian-route.list; do [ ! -e "$_hd/$_hn" ] || HERO_SEED_FRESH=0; done
+ done
+fi
+[ ! -e "$CONF_DIR/meridian-route.list" ] || HERO_SEED_FRESH=0
+[ -z "${QWDTT_DNS_CONF:-}" ] || [ ! -e "$QWDTT_DNS_CONF" ] || HERO_SEED_FRESH=0
+# Маркер начатой чистой установки переживает разрыв сессии до заполнения списка.
+if [ -e "$CONF_DIR/.hero-seed-pending" ]; then HERO_SEED_FRESH=0; HERO_SEED_INTERRUPTED=1
+elif [ "$HERO_SEED_FRESH" = 1 ]; then
+ mkdir -p "$CONF_DIR" && : > "$CONF_DIR/.hero-seed-pending" || HERO_SEED_FRESH=0
+fi
 CONF_FILE="$CONF_DIR/qwdtt.conf"
 DEVICE_ID_FILE="$CONF_DIR/.device_id"
 HW_ID_FILE="$CONF_DIR/.hw_id"
@@ -1466,6 +1487,84 @@ MCTL
 		chmod 755 /usr/bin/meridian-ctl
 	fi
 	return 0
+}
+
+# Стандарт владельца: экспорт HERO 10.11.2026; только новые установки.
+hero_seed() {
+ if [ "${HERO_SEED_INTERRUPTED:-0}" = 1 ]; then
+  say "ВНИМАНИЕ: предыдущая первичная установка прервана; список маршрутов не изменён. Для диагностики пришлите журнал установки и данные поддержки."
+  return 1
+ fi
+ [ "$HERO_SEED_FRESH" = 1 ] || { say "Маршруты: сохранены существующие настройки"; return 0; }
+ _hs_bin="${QWDTT_DNS_BIN:-$INSTALL_DIR/meridian-dns}"
+ _hs_conf="${QWDTT_DNS_CONF:-$CONF_DIR/meridian-dns.yaml}"
+ _hs_groups="$(dirname "$_hs_conf")/meridian-gruppy.json"
+ [ -x "$_hs_bin" ] && [ -f "$_hs_conf" ] || { say "ВНИМАНИЕ: стандартный список не установлен: DNS или файл групп недоступен"; return 1; }
+ _hs_backup="${_hs_conf}.hero-seed-backup.$$"
+ cp -p "$_hs_conf" "$_hs_backup" || return 1
+ _hs_stage="${_hs_conf}.hero-seed-stage.$$"
+ cp -p "$_hs_conf" "$_hs_stage" || return 1
+ _hs_added_ips=""
+ _hs_committed=0
+ _hs_ok=1
+ for _hs_d in console.anthropic.com aistudio.google.com suno-data-uploads.s3.amazonaws.com auth0.openai.com auth.openai.com bard.google.com cdn.oaistatic.com livekit.cloud deepmind.google anthropic.com oaiusercontent.com platform.claude.com gemini.google.com openai.com makersuite.google.com googleusercontent.com geminiweb-pa.clients6.google.com oaistatic.com docs.anthropic.com support.claude.com statsigapi.net chatgpt.com generativelanguage.googleapis.com claudeusercontent.com claude.com deepmind.com claude.ai telegram.me tutamail.com patreon.com canva.com web.whatsapp.com tuta.com t.me binance.com payoneer.com app.cyberyozh.com sonarworks.com featuregates.org my.amnezia.host meridianvpn.org; do
+  "$_hs_bin" -config "$_hs_stage" domains add "$_hs_d" --group "Свои маршруты" --create </dev/null >>"$QWDTT_INSTALL_LOG" 2>&1 && _hs_rc=0 || _hs_rc=$?
+  case "$_hs_rc" in 0|3) ;; *) _hs_ok=0; break ;; esac
+ done
+ if [ "$_hs_ok" = 1 ]; then
+  for _hs_ip in 8.6.112.5 8.47.69.5; do
+   if [ "$PLATFORM" = openwrt ]; then
+    "$_hs_bin" -config "$_hs_stage" domains add "$_hs_ip" --group "Свои маршруты" --create </dev/null >>"$QWDTT_INSTALL_LOG" 2>&1 && _hs_rc=0 || _hs_rc=$?
+    case "$_hs_rc" in 0|3) ;; *) _hs_ok=0; break ;; esac
+   else
+    [ -x "$INSTALL_DIR/meridian-route" ] || { _hs_ok=0; break; }
+    if "$INSTALL_DIR/meridian-route" list show </dev/null 2>/dev/null | grep -Fxq "$_hs_ip"; then continue; fi
+    "$INSTALL_DIR/meridian-route" list add "$_hs_ip" </dev/null >>"$QWDTT_INSTALL_LOG" 2>&1 || :
+    _hs_added_ips="$_hs_added_ips $_hs_ip"
+    if ! "$INSTALL_DIR/meridian-route" list show </dev/null 2>/dev/null | grep -Fxq "$_hs_ip"; then _hs_ok=0; break; fi
+   fi
+  done
+ fi
+ if [ "$_hs_ok" = 1 ]; then
+  if [ "$PLATFORM" = openwrt ]; then
+   if ! cat > "${_hs_groups}.tmp.$$" <<'HERO_OPENWRT_JSON'
+{"v":1,"black":{"groups":[{"id":"hero0","name":"Нейронки","color":"blue"},{"id":"hero1","name":"Соцсети","color":"green"},{"id":"hero2","name":"Переводы","color":"amber"},{"id":"hero3","name":"Серверы","color":"pink"}],"map":{"console.anthropic.com":"hero0","aistudio.google.com":"hero0","suno-data-uploads.s3.amazonaws.com":"hero0","auth0.openai.com":"hero0","auth.openai.com":"hero0","bard.google.com":"hero0","cdn.oaistatic.com":"hero0","livekit.cloud":"hero0","deepmind.google":"hero0","anthropic.com":"hero0","oaiusercontent.com":"hero0","platform.claude.com":"hero0","gemini.google.com":"hero0","openai.com":"hero0","makersuite.google.com":"hero0","googleusercontent.com":"hero0","geminiweb-pa.clients6.google.com":"hero0","oaistatic.com":"hero0","docs.anthropic.com":"hero0","support.claude.com":"hero0","statsigapi.net":"hero0","chatgpt.com":"hero0","generativelanguage.googleapis.com":"hero0","claudeusercontent.com":"hero0","claude.com":"hero0","deepmind.com":"hero0","claude.ai":"hero0","telegram.me":"hero1","tutamail.com":"hero1","patreon.com":"hero1","canva.com":"hero1","web.whatsapp.com":"hero1","tuta.com":"hero1","t.me":"hero1","binance.com":"hero2","payoneer.com":"hero2","app.cyberyozh.com":"hero2","sonarworks.com":"hero3","featuregates.org":"hero3","my.amnezia.host":"hero3","meridianvpn.org":"hero3","8.6.112.5/32":"hero0","8.47.69.5/32":"hero0"},"parked":{}},"white":{"groups":[],"map":{},"parked":{}}}
+HERO_OPENWRT_JSON
+   then _hs_ok=0; fi
+  else
+   if ! cat > "${_hs_groups}.tmp.$$" <<'HERO_ENTWARE_JSON'
+{"v":1,"black":{"groups":[{"id":"hero0","name":"Нейронки","color":"blue"},{"id":"hero1","name":"Соцсети","color":"green"},{"id":"hero2","name":"Переводы","color":"amber"},{"id":"hero3","name":"Серверы","color":"pink"}],"map":{"8.6.112.5":"hero0","8.47.69.5":"hero0","console.anthropic.com":"hero0","aistudio.google.com":"hero0","suno-data-uploads.s3.amazonaws.com":"hero0","auth0.openai.com":"hero0","auth.openai.com":"hero0","bard.google.com":"hero0","cdn.oaistatic.com":"hero0","livekit.cloud":"hero0","deepmind.google":"hero0","anthropic.com":"hero0","oaiusercontent.com":"hero0","platform.claude.com":"hero0","gemini.google.com":"hero0","openai.com":"hero0","makersuite.google.com":"hero0","googleusercontent.com":"hero0","geminiweb-pa.clients6.google.com":"hero0","oaistatic.com":"hero0","docs.anthropic.com":"hero0","support.claude.com":"hero0","statsigapi.net":"hero0","chatgpt.com":"hero0","generativelanguage.googleapis.com":"hero0","claudeusercontent.com":"hero0","claude.com":"hero0","deepmind.com":"hero0","claude.ai":"hero0","telegram.me":"hero1","tutamail.com":"hero1","patreon.com":"hero1","canva.com":"hero1","web.whatsapp.com":"hero1","tuta.com":"hero1","t.me":"hero1","binance.com":"hero2","payoneer.com":"hero2","app.cyberyozh.com":"hero2","sonarworks.com":"hero3","featuregates.org":"hero3","my.amnezia.host":"hero3","meridianvpn.org":"hero3"},"parked":{}},"white":{"groups":[],"map":{},"parked":{}}}
+HERO_ENTWARE_JSON
+   then _hs_ok=0; fi
+  fi
+  # Не переписываем группировку, которую пользователь успел изменить.
+  if [ "$_hs_ok" = 1 ] && [ -e "$_hs_groups" ] && ! cmp -s "${_hs_groups}.tmp.$$" "$_hs_groups"; then _hs_ok=0; fi
+  if [ "$_hs_ok" = 1 ] && ! cmp -s "$_hs_conf" "$_hs_backup"; then _hs_ok=0; fi
+  if [ "$_hs_ok" = 1 ]; then cp -p "$_hs_stage" "${_hs_stage}.committed" || _hs_ok=0; fi
+  if [ "$_hs_ok" = 1 ]; then
+   if mv "$_hs_stage" "$_hs_conf"; then _hs_committed=1; else _hs_ok=0; fi
+  fi
+  if [ "$_hs_ok" = 1 ]; then mv "${_hs_groups}.tmp.$$" "$_hs_groups" || _hs_ok=0; fi
+ fi
+ if [ "$_hs_ok" != 1 ]; then
+  if [ "$_hs_committed" = 1 ]; then
+   if cmp -s "$_hs_conf" "${_hs_stage}.committed"; then
+    cp -p "$_hs_backup" "$_hs_conf" || say "ВНИМАНИЕ: не удалось восстановить конфигурацию DNS"
+   else
+    say "ВНИМАНИЕ: конфигурация DNS изменилась во время установки, не восстанавливаем поверх неё"
+   fi
+  fi
+  for _hs_ip in $_hs_added_ips; do "$INSTALL_DIR/meridian-route" list del "$_hs_ip" </dev/null >>"$QWDTT_INSTALL_LOG" 2>&1 || :; done
+  rm -f "${_hs_groups}.tmp.$$" "$_hs_backup" "$_hs_stage" "${_hs_stage}.committed"
+  say "ВНИМАНИЕ: стандартный список HERO не установлен; проверьте журнал"
+  return 1
+ fi
+ rm -f "$_hs_backup" "${_hs_stage}.committed"
+ : > "$(dirname "$_hs_conf")/.spisok-po-umolchaniyu"
+ : > "$CONF_DIR/.telegram-po-umolchaniyu"
+ rm -f "$CONF_DIR/.hero-seed-pending"
+ say "Стандартный список HERO: 43 записи, 4 группы"
+ return 0
 }
 
 zalit_spisok_po_umolchaniyu() {
@@ -4041,8 +4140,7 @@ dns_itog() {
 dns_itog
 # QWDTT_TEST_PADENIE=<код> — ТОЛЬКО для прогонов: упасть с этим кодом голой командой (как упала бы любая неучтённая).
 [ -z "${QWDTT_TEST_PADENIE:-}" ] || (exit "$QWDTT_TEST_PADENIE")
-zalit_spisok_po_umolchaniyu
-telegram_po_umolchaniyu
+hero_seed || say "ВНИМАНИЕ: список маршрутов требует проверки"
 # 5.66: сервер DNS стартовал ДО заливки списка (без групп) — перезапускаем и проверяем цепочку заворота.
 zavorot_dns_posle_zalivki
 # 21.10.2026 (владелец: «установщик не пишет адрес панели, добавь»; клиент 21.10 копировал вывод до конца установки и думал, что она зависла):
