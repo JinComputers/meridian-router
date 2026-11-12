@@ -3205,10 +3205,10 @@ opkgtun_sozdat() {
 # и об этом сказано прямо, а не молчанием. Негодный ключ здесь установку не останавливает: настройки не трогаются.
 meridian_vzyat_ssylki() {
     SV_VK=""; SV_DION=""
-    # Заполняем только после подтверждения действующего непробного ключа.
+    # Заполняем только после подтверждения действующего ключа, включая пробный.
     case "$KLYUCH_OTVET" in *'"status":"answered"'*) ;; *) return 1;; esac
     case "$KLYUCH_OTVET" in *'"verdict":"ok"'*) ;; *) return 1;; esac
-    case "$KLYUCH_OTVET" in *'"trial":false'*) ;; *) return 1;; esac
+    case "$KLYUCH_OTVET" in *'"trial":false'*|*'"trial":true'*) ;; *) return 1;; esac
     case "$PASSWORD" in ""|*[!A-Za-z0-9_-]*) return 1;; esac
     case "$DEVICE_ID" in ""|*[!A-Za-z0-9_-]*) return 1;; esac
     _rv_body="{\"key\":\"$PASSWORD\",\"device_id\":\"$DEVICE_ID\"}"
