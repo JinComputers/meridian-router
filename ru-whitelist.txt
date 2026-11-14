@@ -149,3 +149,13 @@ yandexcloud.net
 yastatic.net
 yoomoney.ru
 yota.ru
+# 14.11.2026: запрос владельца — баскетбол и российские видеосервисы
+fbm-tv.ru
+ivi.ru
+mofb.russiabasket.ru
+mosbasket.ru
+moscowbasket.com
+okko.tv
+smotreshka.tv
+vkvideo.ru
+wink.ru
