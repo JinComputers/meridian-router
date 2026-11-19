@@ -22,6 +22,15 @@
 # мере прихода, оборванная загрузка не должна исполнить половину.
 
 main() {
+	case "${1:-}" in
+		--routeros-import-check)
+			[ "$#" -eq 1 ] || { echo 'Usage: sh -s -- --routeros-import-check' >&2; return 2; }
+			cat <<'MERIDIAN_ROUTEROS_IMPORT'
+{ :onerror e in={ :local r [/tool/fetch url="https://raw.githubusercontent.com/JinComputers/meridian-linux/3f8f20a72889a842de73635912cb96c18cfef407/hap-ax2-fetch-import.rsc" output=user as-value check-certificate=yes http-max-redirect-count=0 idle-timeout=30s]; :if (($r->"status") != "finished") do={ :error "script download failed" }; :local s ($r->"data"); :if ([:convert $s from=raw transform=sha512 to=hex] != "09b3228fab5c5ea1bde9042819940f7d849bb531f761d3a9b92201aead3b84408a61b305bb524859f1170570e14d2d8ea1be5bb08eb9e0a792fc185082bf69d1") do={ :error "script checksum mismatch" }; :local run [:parse $s]; $run } do={ :put ("M7IMPORT error=" . $e) } }
+MERIDIAN_ROUTEROS_IMPORT
+			return
+			;;
+	esac
 	F=/tmp/install.sh
 	S=/tmp/install.sh.sums
 	skachat() {  # $1 куда, $2 откуда
